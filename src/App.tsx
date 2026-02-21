@@ -1,4 +1,3 @@
-import { testInsertFirestore } from './lib/testFirestore';
 import React, { useState, useEffect } from 'react';
 import { 
   BrowserRouter as Router, 
@@ -118,7 +117,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
           {sellerId && (
             <div className="mt-6 pt-6 border-t border-zinc-100 space-y-2">
               <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Gestion Boutique</p>
-              <AdminNavLink to={`/admin?sellerId=${sellerId}`} icon={<LayoutDashboard size={20} />} label="Commandes" active={location.pathname === '/admin' && !!sellerId} />
+              <AdminNavLink to={`/admin?sellerId=${sellerId}`} icon={<LayoutDashboard size={20} />} label="Dashboard" active={location.pathname === '/admin' && !!sellerId} />
               <AdminNavLink to={`/admin/products?sellerId=${sellerId}`} icon={<Package size={20} />} label="Produits" active={location.pathname === '/admin/products'} />
               <AdminNavLink to={`/admin/categories?sellerId=${sellerId}`} icon={<List size={20} />} label="Catégories" active={location.pathname === '/admin/categories'} />
               <AdminNavLink to={`/admin/clients?sellerId=${sellerId}`} icon={<Users size={20} />} label="Clients" active={location.pathname === '/admin/clients'} />

@@ -167,18 +167,6 @@ export default function SuperAdminSellers() {
         </motion.div>
       )}
 
-      {/* Troubleshooting for 400 Errors */}
-      <Card className="p-4 bg-amber-50 border-amber-100">
-        <h3 className="text-amber-800 font-bold flex items-center gap-2 text-sm">
-          <AlertCircle size={16} /> Aide au dépannage (Erreur 400)
-        </h3>
-        <ul className="text-xs text-amber-700 mt-2 list-disc list-inside space-y-1">
-          <li>Assurez-vous d'avoir cliqué sur <b>"Créer une base de données"</b> dans la section Firestore de votre console Firebase.</li>
-          <li>Vérifiez que le <b>Project ID</b> dans vos secrets correspond exactement à celui de la console Firebase.</li>
-          <li>Vérifiez que les <b>Règles de sécurité</b> Firestore autorisent la lecture/écriture (en mode test pour commencer).</li>
-        </ul>
-      </Card>
-
       {isAdding && (
         <Card className="p-6">
           <form onSubmit={handleSubmit} className="space-y-8">

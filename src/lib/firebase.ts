@@ -21,10 +21,10 @@ let isConfigured = false;
 
 if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
   try {
-    console.log("Initializing Firebase for project:", firebaseConfig.projectId, "Database: (default)");
+    console.log("Initializing Firebase for project:", firebaseConfig.projectId, "Database: maindb");
     app = initializeApp(firebaseConfig);
-    // Utiliser la base par défaut
-    db = getFirestore(app);
+    // Specify 'maindb' as the database ID
+    db = getFirestore(app, "maindb");
     auth = getAuth(app);
     storage = getStorage(app);
     isConfigured = true;
