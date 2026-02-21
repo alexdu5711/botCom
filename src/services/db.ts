@@ -101,6 +101,11 @@ export const addProduct = async (product: Omit<Product, 'id'>) => {
   return await addDoc(collection(database, "products"), product);
 };
 
+export const deleteProduct = async (id: string) => {
+  const database = ensureDb();
+  return await deleteDoc(doc(database, "products", id));
+};
+
 export const uploadProductImage = async (file: File): Promise<string> => {
   const store = ensureStorage();
   const storageRef = ref(store, `products/${Date.now()}_${file.name}`);
