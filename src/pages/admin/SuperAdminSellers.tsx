@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Store, Phone, Search, Trash2, Mail, Lock, User as UserIcon, Database, CheckCircle2, AlertCircle } from 'lucide-react';
-import { getSellers, addSeller, createAppUser, initializeCollections } from '../../services/db';
+import { Plus, Store, Phone, Search, Trash2, Mail, Lock, User as UserIcon, AlertCircle } from 'lucide-react';
+import { getSellers, addSeller, createAppUser } from '../../services/db';
 import { Seller } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -24,8 +24,6 @@ export default function SuperAdminSellers() {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
-  const [initStatus, setInitStatus] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
   const [newSeller, setNewSeller] = useState({
     id: generateId(),
@@ -52,25 +50,6 @@ export default function SuperAdminSellers() {
   useEffect(() => {
     loadSellers();
   }, []);
-
-  const handleInitialize = async () => {
-    setErrorStatus(null);
-    setIsInitializing(true);
-    try {
-      console.log("Starting initialization with config:", {
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        hasApiKey: !!import.meta.env.VITE_FIREBASE_API_KEY
-      });
-      await initializeCollections();
-      setInitStatus("Base de données initialisée avec succès !");
-      setTimeout(() => setInitStatus(null), 5000);
-    } catch (error: any) {
-      console.error("Initialization error details:", error);
-      setErrorStatus("Erreur d'initialisation : " + error.message);
-    } finally {
-      setIsInitializing(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,14 +107,6 @@ export default function SuperAdminSellers() {
           <p className="text-zinc-500">Gérez les comptes vendeurs et leurs accès.</p>
         </div>
         <div className="flex gap-3">
-          <Button 
-            variant="outline" 
-            onClick={handleInitialize} 
-            isLoading={isInitializing}
-            className="gap-2 border-zinc-200"
-          >
-            <Database size={18} /> Initialiser la Base
-          </Button>
           <Button onClick={() => {
             setIsAdding(!isAdding);
             if (!isAdding) setNewSeller(prev => ({ ...prev, id: generateId() }));
@@ -144,17 +115,6 @@ export default function SuperAdminSellers() {
           </Button>
         </div>
       </div>
-
-      {initStatus && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-green-50 text-green-700 p-4 rounded-2xl flex items-center gap-3 border border-green-100"
-        >
-          <CheckCircle2 size={20} />
-          <span className="font-medium">{initStatus}</span>
-        </motion.div>
-      )}
 
       {errorStatus && (
         <motion.div 

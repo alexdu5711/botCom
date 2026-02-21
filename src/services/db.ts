@@ -72,30 +72,6 @@ export const getAppUser = async (uid: string): Promise<AppUser | null> => {
   return null;
 };
 
-// System Initialization
-export const initializeCollections = async () => {
-  const database = ensureDb();
-  const collections = ["sellers", "users", "categories", "products", "orders", "clients"];
-  const results = [];
-  
-  for (const colName of collections) {
-    try {
-      // Create a hidden system document to force collection creation
-      const docRef = doc(database, colName, "_init_");
-      await setDoc(docRef, { 
-        _isSystem: true, 
-        initializedAt: Timestamp.now(),
-        description: `Initialisation de la collection ${colName}`
-      });
-      results.push(`${colName}: OK`);
-    } catch (error: any) {
-      results.push(`${colName}: Erreur (${error.message})`);
-      throw error;
-    }
-  }
-  return results;
-};
-
 // Categories
 export const getCategories = async (sellerId: string): Promise<Category[]> => {
   const database = ensureDb();
