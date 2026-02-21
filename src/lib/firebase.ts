@@ -1,5 +1,5 @@
 import { initializeApp, FirebaseApp } from "firebase/app";
-import { getFirestore, Firestore } from "firebase/firestore";
+import { getFirestore, Firestore, initializeFirestore } from "firebase/firestore";
 import { getAuth, Auth } from "firebase/auth";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 
@@ -13,6 +13,8 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-BHME6F9GB1"
 };
 
+const DATABASE_ID = import.meta.env.VITE_FIREBASE_DATABASE_ID || "maindb";
+
 let app: FirebaseApp | undefined;
 let db: Firestore | undefined;
 let auth: Auth | undefined;
@@ -21,10 +23,15 @@ let isConfigured = false;
 
 if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
   try {
-    console.log("Initializing Firebase for project:", firebaseConfig.projectId, "Database: maindb");
+    console.log("Initializing Firebase for project:", firebaseConfig.projectId, "Database:", DATABASE_ID);
     app = initializeApp(firebaseConfig);
-    // Specify 'maindb' as the database ID
-    db = getFirestore(app, "maindb");
+    
+    // Use initializeFirestore to enable experimentalForceLongPolling
+    // This fixes "client is offline" errors in restricted environments
+    db = initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+    }, DATABASE_ID);
+    
     auth = getAuth(app);
     storage = getStorage(app);
     isConfigured = true;

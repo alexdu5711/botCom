@@ -7,11 +7,16 @@ import { Input, TextArea } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 import { formatPrice } from '../../lib/utils';
 
+import { useAuth } from '../../App';
 import { useSearchParams } from 'react-router-dom';
 
 export default function AdminProducts() {
   const [searchParams] = useSearchParams();
-  const sellerId = searchParams.get('sellerId');
+  const { appUser } = useAuth();
+  const sellerId = appUser?.role === 'super_admin' 
+    ? (searchParams.get('sellerId') || appUser?.sellerId)
+    : appUser?.sellerId;
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);

@@ -6,11 +6,16 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 
+import { useAuth } from '../../App';
 import { useSearchParams } from 'react-router-dom';
 
 export default function AdminCategories() {
   const [searchParams] = useSearchParams();
-  const sellerId = searchParams.get('sellerId');
+  const { appUser } = useAuth();
+  const sellerId = appUser?.role === 'super_admin' 
+    ? (searchParams.get('sellerId') || appUser?.sellerId)
+    : appUser?.sellerId;
+    
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
