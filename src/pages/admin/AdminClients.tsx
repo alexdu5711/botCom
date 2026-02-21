@@ -3,6 +3,7 @@ import { Users, Phone, Calendar, Search, Mail } from 'lucide-react';
 import { getAllClients } from '../../services/db';
 import { Client } from '../../types';
 import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -40,6 +41,23 @@ export default function AdminClients() {
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.phone.includes(searchTerm)
   );
+
+  if (!sellerId && appUser?.role === 'super_admin') {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
+        <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-400">
+          <Users size={32} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold">Aucun vendeur sélectionné</h2>
+          <p className="text-zinc-500">Veuillez d'abord sélectionner un vendeur dans la liste pour voir ses clients.</p>
+        </div>
+        <Button onClick={() => window.location.href = '/admin/sellers'}>
+          Voir les vendeurs
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

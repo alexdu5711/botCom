@@ -38,8 +38,8 @@ import SuperAdminSellers from './pages/admin/SuperAdminSellers';
 import Login from './pages/admin/Login';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { auth } from './lib/firebase';
-import { getAppUser } from './services/db';
-import { AppUser } from './types';
+import { getAppUser, getSeller } from './services/db';
+import { AppUser, Seller } from './types';
 import { LogOut } from 'lucide-react';
 
 // Auth Context
@@ -183,11 +183,24 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { appUser, logout } = useAuth();
+  const [currentSeller, setCurrentSeller] = useState<Seller | null>(null);
   
   // Use sellerId from search params if super_admin, otherwise use from appUser
   const currentSellerId = appUser?.role === 'super_admin' 
     ? (searchParams.get('sellerId') || appUser?.sellerId)
     : appUser?.sellerId;
+
+  useEffect(() => {
+    const fetchSellerDetails = async () => {
+      if (currentSellerId) {
+        const seller = await getSeller(currentSellerId);
+        setCurrentSeller(seller);
+      } else {
+        setCurrentSeller(null);
+      }
+    };
+    fetchSellerDetails();
+  }, [currentSellerId]);
 
   const getLinkWithSeller = (path: string) => {
     if (appUser?.role === 'super_admin' && currentSellerId) {
@@ -202,7 +215,14 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-bold">A</div>
-            <h2 className="text-lg font-bold">Eco Admin</h2>
+            <div>
+              <h2 className="text-lg font-bold leading-tight">Eco Admin</h2>
+              {currentSeller && (
+                <p className="text-[10px] text-zinc-400 font-medium truncate max-w-[120px]">
+                  {currentSeller.shopName}
+                </p>
+              )}
+            </div>
           </div>
           <button 
             onClick={logout}
@@ -211,13 +231,21 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
             <LogOut size={20} />
           </button>
         </div>
+
+        {appUser && (
+          <div className="px-4 py-3 bg-zinc-50 rounded-2xl border border-zinc-100">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">Session</p>
+            <p className="text-sm font-bold truncate">{appUser.name}</p>
+            <p className="text-[10px] text-zinc-500 capitalize">{appUser.role.replace('_', ' ')}</p>
+          </div>
+        )}
         
         <nav className="flex flex-col gap-2 flex-1">
           {appUser?.role === 'super_admin' && (
             <AdminNavLink to="/admin/sellers" icon={<Users size={20} />} label="Vendeurs" active={location.pathname === '/admin/sellers'} />
           )}
           
-          {currentSellerId ? (
+          {(currentSellerId || appUser?.role === 'super_admin') ? (
             <div className="mt-6 pt-6 border-t border-zinc-100 space-y-2">
               <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Gestion Boutique</p>
               <AdminNavLink to={getLinkWithSeller('/admin')} icon={<LayoutDashboard size={20} />} label="Dashboard" active={location.pathname === '/admin'} />

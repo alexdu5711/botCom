@@ -13,7 +13,7 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-BHME6F9GB1"
 };
 
-const DATABASE_ID = import.meta.env.VITE_FIREBASE_DATABASE_ID || "maindb";
+const DATABASE_ID = import.meta.env.VITE_FIREBASE_DATABASE_ID || "(default)";
 
 let app: FirebaseApp | undefined;
 let db: Firestore | undefined;
