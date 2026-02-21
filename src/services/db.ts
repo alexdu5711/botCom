@@ -12,8 +12,7 @@ import {
   setDoc,
   Timestamp
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "../lib/firebase";
+import { db } from "../lib/firebase";
 import { Category, Product, Order, Client, OrderStatus, Seller, AppUser } from "../types";
 
 const ensureDb = () => {
@@ -21,9 +20,13 @@ const ensureDb = () => {
   return db;
 };
 
-const ensureStorage = () => {
-  if (!storage) throw new Error("Storage not initialized. Check your Firebase configuration.");
-  return storage;
+const CLOUDINARY_CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
+const CLOUDINARY_KEY   = import.meta.env.VITE_CLOUDINARY_API_KEY as string;
+const CLOUDINARY_SECRET = import.meta.env.VITE_CLOUDINARY_API_SECRET as string;
+
+const sha1Hex = async (str: string): Promise<string> => {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 };
 
 // Sellers (Merchants)
@@ -50,6 +53,11 @@ export const addSeller = async (seller: Omit<Seller, 'createdAt'>) => {
     ...seller,
     createdAt: Timestamp.now()
   });
+};
+
+export const updateSeller = async (id: string, data: Partial<Omit<Seller, 'id' | 'createdAt'>>) => {
+  const database = ensureDb();
+  return await updateDoc(doc(database, "sellers", id), data);
 };
 
 // Users
@@ -85,6 +93,16 @@ export const addCategory = async (name: string, sellerId: string) => {
   return await addDoc(collection(database, "categories"), { name, sellerId });
 };
 
+export const updateCategory = async (id: string, name: string) => {
+  const database = ensureDb();
+  return await updateDoc(doc(database, "categories", id), { name });
+};
+
+export const deleteCategory = async (id: string) => {
+  const database = ensureDb();
+  return await deleteDoc(doc(database, "categories", id));
+};
+
 // Products
 export const getProducts = async (sellerId: string, categoryId?: string): Promise<Product[]> => {
   const database = ensureDb();
@@ -101,16 +119,33 @@ export const addProduct = async (product: Omit<Product, 'id'>) => {
   return await addDoc(collection(database, "products"), product);
 };
 
+export const updateProduct = async (id: string, data: Partial<Omit<Product, 'id' | 'sellerId'>>) => {
+  const database = ensureDb();
+  return await updateDoc(doc(database, "products", id), data);
+};
+
 export const deleteProduct = async (id: string) => {
   const database = ensureDb();
   return await deleteDoc(doc(database, "products", id));
 };
 
 export const uploadProductImage = async (file: File): Promise<string> => {
-  const store = ensureStorage();
-  const storageRef = ref(store, `products/${Date.now()}_${file.name}`);
-  await uploadBytes(storageRef, file);
-  return await getDownloadURL(storageRef);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = await sha1Hex(`timestamp=${timestamp}${CLOUDINARY_SECRET}`);
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('api_key', CLOUDINARY_KEY);
+  formData.append('timestamp', String(timestamp));
+  formData.append('signature', signature);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error('Cloudinary upload failed');
+  const data = await res.json();
+  return data.secure_url as string;
 };
 
 // Orders

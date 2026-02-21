@@ -5,44 +5,29 @@ import { Clock, CheckCircle2, XCircle, AlertCircle, Package } from 'lucide-react
 import { getClientOrders } from '../../services/db';
 import { Order } from '../../types';
 import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
-import { Button } from '../../components/ui/Button';
 import { formatPrice } from '../../lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function ClientOrders() {
-  const { clientId } = useParams();
+  const { sellerId, clientId } = useParams();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [phone, setPhone] = useState(localStorage.getItem('client_phone') || '');
-  const [hasSearched, setHasSearched] = useState(!!phone);
-
-  const loadOrders = async (phoneToSearch: string) => {
-    if (!clientId || !phoneToSearch) return;
-    setLoading(true);
-    try {
-      const data = await getClientOrders(phoneToSearch, clientId);
-      setOrders(data);
-      setHasSearched(true);
-      localStorage.setItem('client_phone', phoneToSearch);
-    } catch (error) {
-      console.error("Error loading orders:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (phone) {
-      loadOrders(phone);
-    }
-  }, [clientId]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    loadOrders(phone);
-  };
+    const load = async () => {
+      if (!clientId || !sellerId) return;
+      try {
+        const data = await getClientOrders(clientId, sellerId);
+        setOrders(data);
+      } catch (error) {
+        console.error("Error loading orders:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [clientId, sellerId]);
 
   const getStatusInfo = (status: string) => {
     switch (status) {
@@ -70,33 +55,11 @@ export default function ClientOrders() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold">Mes Commandes</h2>
-        <p className="text-zinc-500 text-sm">Entrez votre numéro de téléphone pour suivre vos commandes.</p>
-      </div>
+      <h2 className="text-2xl font-bold">Mes Commandes</h2>
 
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <div className="flex-1">
-          <Input 
-            placeholder="Votre numéro de téléphone" 
-            value={phone}
-            onChange={e => setPhone(e.target.value)}
-            required
-          />
-        </div>
-        <Button type="submit" isLoading={loading}>
-          Suivre
-        </Button>
-      </form>
-      
       <div className="space-y-4">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-4">
-            <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : hasSearched ? (
-          orders.length > 0 ? (
-            orders.map((order, index) => {
+        {orders.length > 0 ? (
+          orders.map((order, index) => {
             const status = getStatusInfo(order.status);
             return (
               <motion.div
@@ -118,7 +81,7 @@ export default function ClientOrders() {
                       {status.label}
                     </div>
                   </div>
-                  
+
                   <div className="border-t border-zinc-50 pt-3 space-y-2">
                     {order.items.map((item, i) => (
                       <div key={i} className="flex justify-between text-sm">
@@ -127,7 +90,7 @@ export default function ClientOrders() {
                       </div>
                     ))}
                   </div>
-                  
+
                   <div className="flex justify-between items-center pt-2 border-t border-zinc-50">
                     <span className="text-sm font-bold">Total</span>
                     <span className="text-lg font-bold">{formatPrice(order.total)}</span>
@@ -141,11 +104,7 @@ export default function ClientOrders() {
             <div className="w-16 h-16 bg-zinc-100 text-zinc-300 rounded-full flex items-center justify-center mx-auto">
               <Package size={32} />
             </div>
-            <p className="text-zinc-500">Aucune commande trouvée pour ce numéro.</p>
-          </div>
-        )) : (
-          <div className="py-10 text-center text-zinc-400 italic">
-            Veuillez entrer votre numéro pour voir vos commandes.
+            <p className="text-zinc-500">Aucune commande pour le moment.</p>
           </div>
         )}
       </div>

@@ -1,22 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Trash2, Plus, Minus, ShoppingBag, CheckCircle2 } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingBag, CheckCircle2, MapPin } from 'lucide-react';
 import { useCart } from '../../store/useCart';
 import { Button } from '../../components/ui/Button';
 import { Input, TextArea } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 import { formatPrice } from '../../lib/utils';
-import { createOrder, saveClient, getClient } from '../../services/db';
+import { createOrder, saveClient, getClient, getSeller } from '../../services/db';
 
 export default function ClientCart() {
-  const { clientId } = useParams();
+  const { sellerId, clientId } = useParams();
   const navigate = useNavigate();
-  const { items, total, updateQuantity, removeItem, clearCart } = useCart();
+  const { items, updateQuantity, removeItem, clearCart } = useCart();
+  const total = useCart(state => state.items.reduce((acc, item) => acc + item.price * item.quantity, 0));
   const [loading, setLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [sellerLogo, setSellerLogo] = useState('');
+
   const [formData, setFormData] = useState({
     name: '',
     firstName: '',
@@ -25,6 +28,60 @@ export default function ClientCart() {
     date: '',
     details: ''
   });
+
+  useEffect(() => {
+    const prefill = async () => {
+      if (!clientId || !sellerId) return;
+      const [client, seller] = await Promise.all([
+        getClient(clientId, sellerId),
+        getSeller(sellerId)
+      ]);
+      if (client?.deliveryPlace) {
+        setFormData(prev => ({ ...prev, location: client.deliveryPlace! }));
+      }
+      if (client?.name) setFormData(prev => ({ ...prev, name: client.name }));
+      if (client?.firstName) setFormData(prev => ({ ...prev, firstName: client.firstName! }));
+      if (seller?.logoUrl) setSellerLogo(seller.logoUrl);
+    };
+    prefill();
+  }, [clientId, sellerId]);
+
+  const handleGetLocation = () => {
+    setLocationLoading(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async pos => {
+          const { latitude, longitude } = pos.coords;
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+              { headers: { 'Accept-Language': 'fr' } }
+            );
+            const data = await res.json();
+            const addr = data.address;
+            const parts = [
+              addr.road,
+              addr.quarter,
+              addr.suburb || addr.neighbourhood || addr.village,
+              addr.city || addr.town || addr.county,
+            ].filter(Boolean);
+            const lieu = parts.length > 0 ? parts.join(', ') : data.display_name;
+            setFormData(prev => ({ ...prev, location: lieu }));
+          } catch {
+            setFormData(prev => ({ ...prev, location: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` }));
+          }
+          setLocationLoading(false);
+        },
+        () => {
+          setLocationLoading(false);
+          alert("Impossible d'obtenir la localisation.");
+        }
+      );
+    } else {
+      setLocationLoading(false);
+      alert("La géolocalisation n'est pas supportée.");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,11 +92,11 @@ export default function ClientCart() {
     try {
       const clientUniqueId = formData.phone;
       // 1. Check if client exists for this specific seller, if not save them
-      const existingClient = await getClient(clientUniqueId, clientId!);
+      const existingClient = await getClient(clientUniqueId, sellerId!);
       if (!existingClient) {
         await saveClient({
           id: clientUniqueId,
-          sellerId: clientId!,
+          sellerId: sellerId!,
           phone: formData.phone,
           name: formData.name,
           firstName: formData.firstName,
@@ -49,7 +106,7 @@ export default function ClientCart() {
 
       // 2. Create Order
       const reference = await createOrder({
-        sellerId: clientId!,
+        sellerId: sellerId!,
         clientId: clientUniqueId,
         items: items.map(item => ({
           productId: item.id,
@@ -89,7 +146,7 @@ export default function ClientCart() {
             {orderSuccess}
           </div>
         </div>
-        <Button onClick={() => navigate(`/client/${clientId}/orders`)} className="w-full">
+        <Button onClick={() => navigate(`/client/${sellerId}/${clientId}/orders`)} className="w-full">
           Suivre mes commandes
         </Button>
       </motion.div>
@@ -106,7 +163,7 @@ export default function ClientCart() {
           <h3 className="font-bold text-lg">Votre panier est vide</h3>
           <p className="text-zinc-500">Ajoutez des produits pour commander.</p>
         </div>
-        <Button onClick={() => navigate(`/client/${clientId}`)}>
+        <Button onClick={() => navigate(`/client/${sellerId}/${clientId}`)}>
           Voir les produits
         </Button>
       </div>
@@ -122,7 +179,7 @@ export default function ClientCart() {
         {items.map(item => (
           <Card key={item.id} className="flex items-center p-3 gap-4">
             <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0">
-              <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src={item.imageUrl || sellerLogo || `https://picsum.photos/400/400?random=${item.id}`} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-sm truncate">{item.name}</h4>
@@ -186,13 +243,20 @@ export default function ClientCart() {
           value={formData.phone}
           onChange={e => setFormData({...formData, phone: e.target.value})}
         />
-        <Input 
-          label="Lieu de livraison" 
-          placeholder="Quartier, Rue, Maison..." 
-          required 
-          value={formData.location}
-          onChange={e => setFormData({...formData, location: e.target.value})}
-        />
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <Input
+              label="Lieu de livraison"
+              placeholder="Quartier, Rue, Maison..."
+              required
+              value={formData.location}
+              onChange={e => setFormData({...formData, location: e.target.value})}
+            />
+          </div>
+          <Button type="button" onClick={handleGetLocation} disabled={locationLoading} className="px-3 h-11 flex-shrink-0">
+            {locationLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <MapPin size={20} />}
+          </Button>
+        </div>
         <Input 
           label="Date de livraison" 
           type="date" 

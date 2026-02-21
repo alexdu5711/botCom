@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 
 // Pages & Components (to be created)
+import { useCart } from './store/useCart';
 import ClientHome from './pages/client/ClientHome';
 import ClientCart from './pages/client/ClientCart';
 import ClientOrders from './pages/client/ClientOrders';
@@ -119,58 +120,66 @@ const ProtectedRoute = ({ children, requireSuperAdmin = false }: { children: Rea
 
 // Layouts
 const ClientLayout = ({ children }: { children: React.ReactNode }) => {
-  const { clientId } = useParams();
+  const { sellerId, clientId } = useParams();
   const location = useLocation();
   const [sellerName, setSellerName] = useState('Eco-Shop');
+  const cartCount = useCart(state => state.items.reduce((acc, i) => acc + i.quantity, 0));
 
   useEffect(() => {
     const fetchSeller = async () => {
-      if (clientId) {
+      if (sellerId) {
         const { getSeller } = await import('./services/db');
-        const seller = await getSeller(clientId);
+        const seller = await getSeller(sellerId);
         if (seller) setSellerName(seller.shopName);
       }
     };
     fetchSeller();
-  }, [clientId]);
-  
+  }, [sellerId]);
+
+  const base = `/client/${sellerId}/${clientId}`;
+
   return (
     <div className="min-h-screen bg-zinc-50 pb-24">
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-4 py-3">
         <div className="flex items-center justify-between max-w-md mx-auto">
           <h1 className="text-xl font-bold tracking-tight">{sellerName}</h1>
-          <div className="flex items-center gap-4">
-            <Link to={`/client/${clientId}/orders`} className="text-zinc-500 hover:text-black transition-colors">
-              <Clock size={22} />
-            </Link>
-          </div>
+          <Link to={`${base}/orders`} className="text-zinc-500 hover:text-black transition-colors">
+            <Clock size={22} />
+          </Link>
         </div>
       </header>
-      
+
       <main className="max-w-md mx-auto px-4 py-6">
         {children}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-zinc-100 px-6 py-3">
         <div className="max-w-md mx-auto flex items-center justify-around">
-          <Link 
-            to={`/client/${clientId}`} 
+          <Link
+            to={base}
             className={cn(
               "flex flex-col items-center gap-1 transition-colors",
-              location.pathname === `/client/${clientId}` ? "text-black" : "text-zinc-400"
+              location.pathname === base ? "text-black" : "text-zinc-400"
             )}
           >
             <Package size={24} />
             <span className="text-[10px] font-medium uppercase tracking-wider">Boutique</span>
           </Link>
-          <Link 
-            to={`/client/${clientId}/cart`} 
+          <Link
+            to={`${base}/cart`}
             className={cn(
-              "flex flex-col items-center gap-1 transition-colors",
-              location.pathname === `/client/${clientId}/cart` ? "text-black" : "text-zinc-400"
+              "flex flex-col items-center gap-1 transition-colors relative",
+              location.pathname === `${base}/cart` ? "text-black" : "text-zinc-400"
             )}
           >
-            <ShoppingBag size={24} />
+            <div className="relative">
+              <ShoppingBag size={24} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-black text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </div>
             <span className="text-[10px] font-medium uppercase tracking-wider">Panier</span>
           </Link>
         </div>
@@ -335,9 +344,9 @@ export default function App() {
       <Router>
         <Routes>
           {/* Client Routes */}
-          <Route path="/client/:clientId" element={<ClientLayout><ClientHome /></ClientLayout>} />
-          <Route path="/client/:clientId/cart" element={<ClientLayout><ClientCart /></ClientLayout>} />
-          <Route path="/client/:clientId/orders" element={<ClientLayout><ClientOrders /></ClientLayout>} />
+          <Route path="/client/:sellerId/:clientId" element={<ClientLayout><ClientHome /></ClientLayout>} />
+          <Route path="/client/:sellerId/:clientId/cart" element={<ClientLayout><ClientCart /></ClientLayout>} />
+          <Route path="/client/:sellerId/:clientId/orders" element={<ClientLayout><ClientOrders /></ClientLayout>} />
           
           {/* Auth */}
           <Route path="/login" element={<Login />} />

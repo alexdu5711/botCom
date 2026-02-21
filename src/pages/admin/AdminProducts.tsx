@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Image as ImageIcon, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getProducts, getCategories, addProduct, uploadProductImage, deleteProduct } from '../../services/db';
+import { Plus, Trash2, Image as ImageIcon, Search, ChevronLeft, ChevronRight, Pencil, X, Check } from 'lucide-react';
+import { getProducts, getCategories, addProduct, uploadProductImage, deleteProduct, updateProduct } from '../../services/db';
 import { Product, Category } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input, TextArea } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 import { formatPrice, cn } from '../../lib/utils';
+import { AnimatePresence, motion } from 'motion/react';
 
 import { useAuth } from '../../App';
 import { useSearchParams } from 'react-router-dom';
@@ -46,6 +47,31 @@ export default function AdminProducts() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit state
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', description: '', price: 0, categoryId: '', imageUrl: '' });
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const openEdit = (product: Product) => {
+    setEditingProduct(product);
+    setEditForm({ name: product.name, description: product.description, price: product.price, categoryId: product.categoryId, imageUrl: product.imageUrl });
+    setEditImageFile(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingProduct) return;
+    setIsSavingEdit(true);
+    try {
+      let imageUrl = editForm.imageUrl;
+      if (editImageFile) imageUrl = await uploadProductImage(editImageFile);
+      await updateProduct(editingProduct.id, { ...editForm, imageUrl });
+      setEditingProduct(null);
+      loadData();
+    } catch (e) { console.error(e); }
+    finally { setIsSavingEdit(false); }
+  };
 
   const loadData = async () => {
     if (!sellerId) return;
@@ -138,6 +164,7 @@ export default function AdminProducts() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -286,8 +313,14 @@ export default function AdminProducts() {
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+                    <button
+                      onClick={() => openEdit(product)}
+                      className="p-2 bg-white/90 backdrop-blur-sm text-zinc-600 rounded-lg shadow-sm hover:bg-zinc-100 transition-colors"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
                       onClick={() => handleDelete(product.id)}
                       className="p-2 bg-white/90 backdrop-blur-sm text-red-500 rounded-lg shadow-sm hover:bg-red-50 transition-colors"
                     >
@@ -360,5 +393,65 @@ export default function AdminProducts() {
         </>
       )}
     </div>
+
+      {/* Edit Product Modal */}
+      <AnimatePresence>
+        {editingProduct && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setEditingProduct(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-2xl space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">Modifier le produit</h2>
+                <button onClick={() => setEditingProduct(null)} className="p-2 text-zinc-400 hover:text-black rounded-xl hover:bg-zinc-100 transition-colors"><X size={20} /></button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Input label="Nom" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="Prix" type="number" value={editForm.price} onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })} />
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-zinc-700">Catégorie</label>
+                      <select
+                        className="flex h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                        value={editForm.categoryId}
+                        onChange={e => setEditForm({ ...editForm, categoryId: e.target.value })}
+                      >
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <TextArea label="Description" value={editForm.description} onChange={e => setEditForm({ ...editForm, description: e.target.value })} />
+                </div>
+                <div className="space-y-4">
+                  <label className="text-sm font-medium text-zinc-700">Image</label>
+                  <div className="border-2 border-dashed border-zinc-200 rounded-2xl aspect-video flex items-center justify-center bg-zinc-50 overflow-hidden relative">
+                    {(editImageFile || editForm.imageUrl) ? (
+                      <img src={editImageFile ? URL.createObjectURL(editImageFile) : editForm.imageUrl} className="w-full h-full object-cover" alt="preview" referrerPolicy="no-referrer" />
+                    ) : (
+                      <ImageIcon size={40} className="text-zinc-300" />
+                    )}
+                    <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setEditImageFile(e.target.files?.[0] || null)} />
+                  </div>
+                  <Input label="Ou URL de l'image" value={editForm.imageUrl} onChange={e => setEditForm({ ...editForm, imageUrl: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => setEditingProduct(null)}>Annuler</Button>
+                <Button className="flex-1 gap-2" isLoading={isSavingEdit} onClick={handleSaveEdit}><Check size={16} /> Enregistrer</Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

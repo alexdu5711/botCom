@@ -3,6 +3,7 @@ export interface Seller {
   name: string; // Owner name
   shopName: string; // Displayed shop name
   phone: string;
+  logoUrl?: string;
   createdAt: any;
 }
 
@@ -64,5 +65,7 @@ export interface Client {
   name: string;
   firstName?: string;
   sellerId: string;
+  deliveryPlace?: string;
+  location?: { latitude: number; longitude: number };
   createdAt: any;
 }
