@@ -1,3 +1,5 @@
+# Exclure le cache npm
+.npm-cache/
 node_modules/
 build/
 dist/
