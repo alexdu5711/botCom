@@ -1,3 +1,4 @@
+import { testInsertFirestore } from './lib/testFirestore';
 import React, { useState, useEffect } from 'react';
 import { 
   BrowserRouter as Router, 
@@ -176,6 +177,11 @@ const SetupWarning = () => (
 );
 
 export default function App() {
+    useEffect(() => {
+      testInsertFirestore()
+        .then(id => console.log('Test Firestore OK, ID:', id))
+        .catch(e => console.error('Test Firestore Échec:', e));
+    }, []);
   if (!isConfigured) {
     return <SetupWarning />;
   }

@@ -1,6 +1,5 @@
 {
   "firestore": {
-    "database": "maindb",
     "location": "asia-east1",
     "rules": "firestore.rules",
     "indexes": "y"
