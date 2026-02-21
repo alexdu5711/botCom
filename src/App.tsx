@@ -36,6 +36,87 @@ import AdminProducts from './pages/admin/AdminProducts';
 import AdminCategories from './pages/admin/AdminCategories';
 import AdminClients from './pages/admin/AdminClients';
 import SuperAdminSellers from './pages/admin/SuperAdminSellers';
+import Login from './pages/admin/Login';
+import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { auth } from './lib/firebase';
+import { getAppUser, getSeller } from './services/db';
+import { AppUser, Seller } from './types';
+import { LogOut } from 'lucide-react';
+
+// Auth Context
+interface AuthContextType {
+  user: FirebaseUser | null;
+  appUser: AppUser | null;
+  loading: boolean;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = React.createContext<AuthContextType | null>(null);
+
+export const useAuth = () => {
+  const context = React.useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  return context;
+};
+
+const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      setUser(u);
+      if (u) {
+        const userData = await getAppUser(u.uid);
+        setAppUser(userData);
+      } else {
+        setAppUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const logout = async () => {
+    if (auth) await signOut(auth);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, appUser, loading, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+const ProtectedRoute = ({ children, requireSuperAdmin = false }: { children: React.ReactNode, requireSuperAdmin?: boolean }) => {
+  const { user, appUser, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requireSuperAdmin && appUser?.role !== 'super_admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 // Layouts
 const ClientLayout = ({ children }: { children: React.ReactNode }) => {
@@ -102,29 +183,95 @@ const ClientLayout = ({ children }: { children: React.ReactNode }) => {
 const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const sellerId = searchParams.get('sellerId');
+  const { appUser, logout } = useAuth();
+  const [currentSeller, setCurrentSeller] = useState<Seller | null>(null);
+  
+  // Use sellerId from search params if super_admin, otherwise use from appUser
+  const currentSellerId = appUser?.role === 'super_admin' 
+    ? (searchParams.get('sellerId') || appUser?.sellerId)
+    : appUser?.sellerId;
+
+  useEffect(() => {
+    const fetchSellerDetails = async () => {
+      if (currentSellerId) {
+        const seller = await getSeller(currentSellerId);
+        setCurrentSeller(seller);
+      } else {
+        setCurrentSeller(null);
+      }
+    };
+    fetchSellerDetails();
+  }, [currentSellerId]);
+
+  const getLinkWithSeller = (path: string) => {
+    if (appUser?.role === 'super_admin' && currentSellerId) {
+      return `${path}?sellerId=${currentSellerId}`;
+    }
+    return path;
+  };
   
   return (
     <div className="min-h-screen bg-zinc-50 flex flex-col md:flex-row">
       <aside className="w-full md:w-64 bg-white border-r border-zinc-100 p-6 flex flex-col gap-8">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-bold">A</div>
-          <h2 className="text-lg font-bold">Eco Admin</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-bold">A</div>
+            <div>
+              <h2 className="text-lg font-bold leading-tight">Eco Admin</h2>
+              {currentSeller && (
+                <p className="text-[10px] text-zinc-400 font-medium truncate max-w-[120px]">
+                  {currentSeller.shopName}
+                </p>
+              )}
+            </div>
+          </div>
+          <button 
+            onClick={logout}
+            className="md:hidden p-2 text-zinc-400 hover:text-red-500 transition-colors"
+          >
+            <LogOut size={20} />
+          </button>
         </div>
+
+        {appUser && (
+          <div className="px-4 py-3 bg-zinc-50 rounded-2xl border border-zinc-100">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">Session</p>
+            <p className="text-sm font-bold truncate">{appUser.name}</p>
+            <p className="text-[10px] text-zinc-500 capitalize">{appUser.role.replace('_', ' ')}</p>
+          </div>
+        )}
         
-        <nav className="flex flex-col gap-2">
-          <AdminNavLink to="/admin/sellers" icon={<Users size={20} />} label="Vendeurs" active={location.pathname === '/admin/sellers'} />
+        <nav className="flex flex-col gap-2 flex-1">
+          {appUser?.role === 'super_admin' && (
+            <AdminNavLink to="/admin/sellers" icon={<Users size={20} />} label="Vendeurs" active={location.pathname === '/admin/sellers'} />
+          )}
           
-          {sellerId && (
+          {(currentSellerId || appUser?.role === 'super_admin') ? (
             <div className="mt-6 pt-6 border-t border-zinc-100 space-y-2">
               <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Gestion Boutique</p>
-              <AdminNavLink to={`/admin?sellerId=${sellerId}`} icon={<LayoutDashboard size={20} />} label="Dashboard" active={location.pathname === '/admin' && !!sellerId} />
-              <AdminNavLink to={`/admin/products?sellerId=${sellerId}`} icon={<Package size={20} />} label="Produits" active={location.pathname === '/admin/products'} />
-              <AdminNavLink to={`/admin/categories?sellerId=${sellerId}`} icon={<List size={20} />} label="Catégories" active={location.pathname === '/admin/categories'} />
-              <AdminNavLink to={`/admin/clients?sellerId=${sellerId}`} icon={<Users size={20} />} label="Clients" active={location.pathname === '/admin/clients'} />
+              <AdminNavLink to={getLinkWithSeller('/admin')} icon={<LayoutDashboard size={20} />} label="Dashboard" active={location.pathname === '/admin'} />
+              <AdminNavLink to={getLinkWithSeller('/admin/products')} icon={<Package size={20} />} label="Produits" active={location.pathname === '/admin/products'} />
+              <AdminNavLink to={getLinkWithSeller('/admin/categories')} icon={<List size={20} />} label="Catégories" active={location.pathname === '/admin/categories'} />
+              <AdminNavLink to={getLinkWithSeller('/admin/clients')} icon={<Users size={20} />} label="Clients" active={location.pathname === '/admin/clients'} />
             </div>
+          ) : (
+            appUser?.role === 'seller_admin' && (
+              <div className="mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100 text-amber-700 text-xs text-center">
+                Aucune boutique associée à votre compte.
+              </div>
+            )
           )}
         </nav>
+
+        <div className="mt-auto pt-6 border-t border-zinc-100 hidden md:block">
+          <button 
+            onClick={logout}
+            className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-zinc-500 hover:bg-red-50 hover:text-red-600 transition-all"
+          >
+            <LogOut size={20} />
+            <span className="font-medium">Déconnexion</span>
+          </button>
+        </div>
       </aside>
       
       <main className="flex-1 p-6 md:p-10 max-w-6xl mx-auto w-full">
@@ -149,8 +296,8 @@ const AdminNavLink = ({ to, icon, label, active }: { to: string, icon: React.Rea
 
 import { cn } from './lib/utils';
 import { isConfigured } from './lib/firebase';
-import { AlertTriangle } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { AlertTriangle, LogOut as LogOutIcon } from 'lucide-react';
+import { useSearchParams, Navigate } from 'react-router-dom';
 
 const SetupWarning = () => (
   <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-6">
@@ -171,6 +318,9 @@ const SetupWarning = () => (
           <li>VITE_FIREBASE_PROJECT_ID</li>
           <li>... (voir .env.example)</li>
         </ul>
+        <p className="text-[10px] text-zinc-400 mt-4 italic">
+          Note: Après configuration, créez votre premier compte Super Admin via la console Firebase (Auth + collection 'users').
+        </p>
       </div>
     </div>
   </div>
@@ -185,25 +335,28 @@ export default function App() {
   }
 
   return (
-    <Router>
-      <Routes>
-        {/* Client Routes */}
-        <Route path="/client/:clientId" element={<ClientLayout><ClientHome /></ClientLayout>} />
-        <Route path="/client/:clientId/cart" element={<ClientLayout><ClientCart /></ClientLayout>} />
-        <Route path="/client/:clientId/orders" element={<ClientLayout><ClientOrders /></ClientLayout>} />
-        
-        {/* Admin Routes */}
-        <Route path="/admin" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
-        <Route path="/admin/products" element={<AdminLayout><AdminProducts /></AdminLayout>} />
-        <Route path="/admin/categories" element={<AdminLayout><AdminCategories /></AdminLayout>} />
-        <Route path="/admin/clients" element={<AdminLayout><AdminClients /></AdminLayout>} />
-        <Route path="/admin/sellers" element={<AdminLayout><SuperAdminSellers /></AdminLayout>} />
-        
-        {/* Default redirect */}
-        <Route path="/" element={<div className="p-10 text-center">
-          <Link to="/admin/sellers" className="text-blue-500 underline">Accéder à l'administration</Link>
-        </div>} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Client Routes */}
+          <Route path="/client/:clientId" element={<ClientLayout><ClientHome /></ClientLayout>} />
+          <Route path="/client/:clientId/cart" element={<ClientLayout><ClientCart /></ClientLayout>} />
+          <Route path="/client/:clientId/orders" element={<ClientLayout><ClientOrders /></ClientLayout>} />
+          
+          {/* Auth */}
+          <Route path="/login" element={<Login />} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin" element={<ProtectedRoute><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/products" element={<ProtectedRoute><AdminLayout><AdminProducts /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/categories" element={<ProtectedRoute><AdminLayout><AdminCategories /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/clients" element={<ProtectedRoute><AdminLayout><AdminClients /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/sellers" element={<ProtectedRoute requireSuperAdmin><AdminLayout><SuperAdminSellers /></AdminLayout></ProtectedRoute>} />
+          
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to="/admin" replace />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }

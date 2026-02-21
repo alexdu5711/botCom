@@ -9,11 +9,16 @@ import { formatPrice } from '../../lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
+import { useAuth } from '../../App';
 import { useSearchParams } from 'react-router-dom';
 
 export default function AdminDashboard() {
   const [searchParams] = useSearchParams();
-  const sellerId = searchParams.get('sellerId');
+  const { appUser } = useAuth();
+  const sellerId = appUser?.role === 'super_admin' 
+    ? (searchParams.get('sellerId') || appUser?.sellerId)
+    : appUser?.sellerId;
+    
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
@@ -81,12 +86,62 @@ export default function AdminDashboard() {
     }
   };
 
+  const seedProducts = async () => {
+    if (!sellerId) return;
+    const { addProduct } = await import('../../services/db');
+    const productsToAdd = [
+      { name: "Azzaro Chrome", description: "Fragrances intenses, boisées et charismatiques.", price: 3500, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
+      { name: "Invictus (Paco Rabanne)", description: "Fragrance boisée aquatique pour homme.", price: 4500, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
+      { name: "Sauvage Dior", description: "Une composition d'une fraîcheur radicale, dictée par un nom qui sonne comme un manifeste.", price: 5500, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
+      { name: "One Million (Paco Rabanne)", description: "L'élégance d'un lingot d'or combinée à une fragrance addictive.", price: 4200, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
+      { name: "Creed Aventus", description: "Un parfum boisé, fruité et riche.", price: 12000, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
+      { name: "Terre d'Hermès", description: "Un parfum entre terre et ciel, une structure verticale bâtie autour du bois.", price: 4800, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
+      { name: "Hugo Red", description: "Un parfum dynamique pour l'homme qui veut repousser ses limites.", price: 3200, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" }
+    ];
+
+    try {
+      for (const product of productsToAdd) {
+        await addProduct(product);
+      }
+      alert("Produits ajoutés avec succès !");
+      loadOrders();
+    } catch (error) {
+      console.error("Error seeding products:", error);
+      alert("Erreur lors de l'ajout des produits.");
+    }
+  };
+
+  if (!sellerId && appUser?.role === 'super_admin') {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
+        <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-400">
+          <Search size={32} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold">Aucun vendeur sélectionné</h2>
+          <p className="text-zinc-500">Veuillez d'abord sélectionner un vendeur dans la liste pour voir ses données.</p>
+        </div>
+        <Button onClick={() => window.location.href = '/admin/sellers'}>
+          Voir les vendeurs
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Tableau de bord</h1>
           <p className="text-zinc-500">Gérez vos commandes et suivez vos ventes.</p>
+          {appUser?.role === 'super_admin' && (
+            <button 
+              onClick={seedProducts}
+              className="mt-2 text-[10px] text-zinc-400 hover:text-black transition-colors underline"
+            >
+              Ajouter les produits de démonstration
+            </button>
+          )}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
           {(['all', 'processing', 'processed', 'cancelled', 'refused'] as const).map(s => (

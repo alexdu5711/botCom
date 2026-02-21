@@ -6,11 +6,16 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 
+import { useAuth } from '../../App';
 import { useSearchParams } from 'react-router-dom';
 
 export default function AdminCategories() {
   const [searchParams] = useSearchParams();
-  const sellerId = searchParams.get('sellerId');
+  const { appUser } = useAuth();
+  const sellerId = appUser?.role === 'super_admin' 
+    ? (searchParams.get('sellerId') || appUser?.sellerId)
+    : appUser?.sellerId;
+    
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -48,6 +53,23 @@ export default function AdminCategories() {
       setIsSubmitting(false);
     }
   };
+
+  if (!sellerId && appUser?.role === 'super_admin') {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
+        <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-400">
+          <List size={32} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold">Aucun vendeur sélectionné</h2>
+          <p className="text-zinc-500">Veuillez d'abord sélectionner un vendeur dans la liste pour gérer ses catégories.</p>
+        </div>
+        <Button onClick={() => window.location.href = '/admin/sellers'}>
+          Voir les vendeurs
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-2xl">
