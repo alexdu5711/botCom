@@ -1,3 +1,4 @@
+import { addDefaultProducts } from './lib/addDefaultProducts';
 import React, { useState, useEffect } from 'react';
 import { 
   BrowserRouter as Router, 
@@ -176,6 +177,9 @@ const SetupWarning = () => (
 );
 
 export default function App() {
+    useEffect(() => {
+      addDefaultProducts();
+    }, []);
   if (!isConfigured) {
     return <SetupWarning />;
   }
