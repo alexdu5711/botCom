@@ -130,9 +130,16 @@ export const createOrder = async (orderData: Omit<Order, 'id' | 'reference' | 'c
 
 export const getOrders = async (sellerId: string): Promise<Order[]> => {
   const database = ensureDb();
-  const q = query(collection(database, "orders"), where("sellerId", "==", sellerId), orderBy("createdAt", "desc"));
+  const q = query(collection(database, "orders"), where("sellerId", "==", sellerId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+  const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+  
+  // Sort client-side to avoid Firestore index requirement
+  return orders.sort((a, b) => {
+    const dateA = (a.createdAt as any)?.seconds || 0;
+    const dateB = (b.createdAt as any)?.seconds || 0;
+    return dateB - dateA;
+  });
 };
 
 export const getClientOrders = async (clientId: string, sellerId: string): Promise<Order[]> => {
@@ -140,11 +147,17 @@ export const getClientOrders = async (clientId: string, sellerId: string): Promi
   const q = query(
     collection(database, "orders"), 
     where("clientId", "==", clientId), 
-    where("sellerId", "==", sellerId),
-    orderBy("createdAt", "desc")
+    where("sellerId", "==", sellerId)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+  const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+
+  // Sort client-side to avoid Firestore index requirement
+  return orders.sort((a, b) => {
+    const dateA = (a.createdAt as any)?.seconds || 0;
+    const dateB = (b.createdAt as any)?.seconds || 0;
+    return dateB - dateA;
+  });
 };
 
 export const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
