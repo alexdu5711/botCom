@@ -54,8 +54,10 @@ export interface Order {
     name: string;
     firstName: string;
     phone: string;
+    secondContact?: string;
     location: string;
     date: string;
+    timeSlot?: string;
     details: string;
   };
   createdAt: any;

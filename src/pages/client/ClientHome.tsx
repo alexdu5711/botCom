@@ -1,7 +1,7 @@
 import { getClient, saveClient } from '../../services/db';
 import { Client } from '../../types';
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Search, Plus, ShoppingBag, Package, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getCategories, getProducts, getSeller } from '../../services/db';
@@ -28,7 +28,14 @@ export default function ClientHome() {
   const [loading, setLoading] = useState(true);
   const [sellerLogo, setSellerLogo] = useState('');
   const addItem = useCart(state => state.addItem);
+  const cartItems = useCart(state => state.items);
   const clientName = useCart(state => state.clientName);
+  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const productQuantities = cartItems.reduce<Record<string, number>>((acc, item) => {
+    acc[item.id] = item.quantity;
+    return acc;
+  }, {});
+  const base = `/client/${sellerId}/${clientId}`;
 
   useEffect(() => {
     const checkClient = async () => {
@@ -224,6 +231,11 @@ export default function ClientHome() {
                     className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500"
                     referrerPolicy="no-referrer"
                   />
+                  {productQuantities[product.id] > 0 && (
+                    <div className="absolute top-2 right-2 min-w-6 h-6 px-1.5 rounded-full bg-black text-white text-xs font-bold flex items-center justify-center shadow-lg shadow-black/20">
+                      {productQuantities[product.id]}
+                    </div>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col justify-between gap-2">
                   <div>
@@ -297,6 +309,20 @@ export default function ClientHome() {
             Suiv.
             <ChevronRight size={16} />
           </button>
+        </div>
+      )}
+
+      {cartCount > 0 && (
+        <div className="fixed bottom-24 left-4 right-4 z-40 max-w-md mx-auto">
+          <Link to={`${base}/cart`} className="block">
+            <Button className="w-full h-12 rounded-2xl shadow-xl shadow-black/20 flex items-center justify-center gap-2">
+              <ShoppingBag size={18} />
+              Valider mon panier
+              <span className="ml-1 inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-white text-black text-xs font-bold">
+                {cartCount}
+              </span>
+            </Button>
+          </Link>
         </div>
       )}
     </div>

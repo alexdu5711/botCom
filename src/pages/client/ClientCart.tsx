@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Trash2, Plus, Minus, ShoppingBag, CheckCircle2, MapPin } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingBag, CheckCircle2, MapPin, ChevronDown } from 'lucide-react';
 import { useCart } from '../../store/useCart';
 import { Button } from '../../components/ui/Button';
 import { Input, TextArea } from '../../components/ui/Input';
@@ -28,6 +28,13 @@ const splitNameAndFirstName = (rawValue: string) => {
   return { name: value, firstName: '' };
 };
 
+const DELIVERY_TIME_SLOTS = [
+  '8h - 10h',
+  '10h - 12h',
+  '12h - 15h',
+  '15h - 17h',
+];
+
 export default function ClientCart() {
   const { sellerId, clientId } = useParams();
   const navigate = useNavigate();
@@ -45,8 +52,10 @@ export default function ClientCart() {
     name: clientNameFromStore || '',
     firstName: '',
     phone: clientId || '',
+    secondContact: '',
     location: '',
     date: '',
+    timeSlot: '',
     details: ''
   });
 
@@ -132,6 +141,11 @@ export default function ClientCart() {
         return;
       }
       // clientId (URL param) is the immutable identifier — never replaced by formData.phone
+      if (!formData.timeSlot) {
+        setError('Veuillez choisir une tranche horaire de livraison.');
+        setLoading(false);
+        return;
+      }
       const clientUniqueId = clientId!;
       const deliveryDetails = {
         ...formData,
@@ -296,6 +310,12 @@ export default function ClientCart() {
           value={formData.phone}
           onChange={e => setFormData({...formData, phone: e.target.value})}
         />
+        <Input
+          label="Second contact de livraison"
+          placeholder="Numéro secondaire (optionnel)"
+          value={formData.secondContact}
+          onChange={e => setFormData({ ...formData, secondContact: e.target.value })}
+        />
         <div className="flex gap-2 items-end">
           <div className="flex-1">
             <Input
@@ -317,6 +337,23 @@ export default function ClientCart() {
           value={formData.date}
           onChange={e => setFormData({...formData, date: e.target.value})}
         />
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-zinc-700">Tranche horaire</label>
+          <div className="relative">
+            <select
+              required
+              value={formData.timeSlot}
+              onChange={e => setFormData({ ...formData, timeSlot: e.target.value })}
+              className="h-12 w-full appearance-none rounded-2xl border border-zinc-300 bg-zinc-50 px-4 pr-11 text-sm font-medium text-zinc-800 shadow-sm transition-all hover:bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-zinc-500"
+            >
+              <option value="">Choisir une plage horaire</option>
+              {DELIVERY_TIME_SLOTS.map(slot => (
+                <option key={slot} value={slot}>{slot}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+          </div>
+        </div>
         <TextArea 
           label="Détails supplémentaires" 
           placeholder="Instructions pour le livreur..." 
@@ -332,4 +369,3 @@ export default function ClientCart() {
     </div>
   );
 }
-

@@ -8,7 +8,6 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { formatPrice } from '../../lib/utils';
 import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
-import { fr } from 'date-fns/locale';
 
 import { useAuth } from '../../App';
 import { useSearchParams } from 'react-router-dom';
@@ -24,7 +23,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
-  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [pendingChange, setPendingChange] = useState<{ orderId: string; newStatus: OrderStatus; ref: string } | null>(null);
@@ -73,6 +72,8 @@ export default function AdminDashboard() {
     if (ts?.seconds) return new Date(ts.seconds * 1000);
     return new Date(ts);
   };
+
+  const toTelHref = (phone?: string) => `tel:${(phone || '').replace(/\s+/g, '')}`;
 
   const dateFilteredOrders = orders.filter(order => {
     if (dateFilter === 'all') return true;
@@ -286,8 +287,18 @@ export default function AdminDashboard() {
                             <span className="text-xs font-mono font-bold text-zinc-400 uppercase tracking-wider">Ref: {order.reference}</span>
                             <h3 className="text-lg font-bold">{order.deliveryDetails.name} {order.deliveryDetails.firstName}</h3>
                             <div className="flex items-center gap-4 text-sm text-zinc-500">
-                              <span className="flex items-center gap-1"><Phone size={14} /> {order.deliveryDetails.phone}</span>
-                              <span className="flex items-center gap-1"><Calendar size={14} /> {order.createdAt?.toDate ? format(order.createdAt.toDate(), 'PPp', { locale: fr }) : 'N/A'}</span>
+                              <span className="flex items-center gap-1">
+                                <Phone size={14} />
+                                {order.deliveryDetails?.phone || order.clientId ? (
+                                  <a
+                                    href={toTelHref(order.deliveryDetails?.phone || order.clientId)}
+                                    className="hover:underline"
+                                  >
+                                    {order.deliveryDetails?.phone || order.clientId}
+                                  </a>
+                                ) : 'N/A'}
+                              </span>
+                              <span className="flex items-center gap-1"><Calendar size={14} /> {order.createdAt?.toDate ? format(order.createdAt.toDate(), 'dd/MM/yyyy, HH:mm') : 'N/A'}</span>
                             </div>
                           </div>
                           <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusBadge(order.status)}`}>
@@ -296,6 +307,28 @@ export default function AdminDashboard() {
                         </div>
 
                         <div className="bg-zinc-50 rounded-xl p-4 space-y-2">
+                          {order.deliveryDetails.secondContact && (
+                            <div className="flex items-start gap-2 text-sm">
+                              <Phone size={16} className="text-zinc-400 mt-0.5" />
+                              <div>
+                                <p className="font-medium">Second contact:</p>
+                                <p className="text-zinc-600">
+                                  <a href={toTelHref(order.deliveryDetails.secondContact)} className="hover:underline">
+                                    {order.deliveryDetails.secondContact}
+                                  </a>
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {order.deliveryDetails.timeSlot && (
+                            <div className="flex items-start gap-2 text-sm">
+                              <Clock size={16} className="text-zinc-400 mt-0.5" />
+                              <div>
+                                <p className="font-medium">Tranche horaire:</p>
+                                <p className="text-zinc-600">{order.deliveryDetails.timeSlot}</p>
+                              </div>
+                            </div>
+                          )}
                           <div className="flex items-start gap-2 text-sm">
                             <MapPin size={16} className="text-zinc-400 mt-0.5" />
                             <div>

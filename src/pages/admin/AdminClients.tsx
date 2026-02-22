@@ -44,6 +44,8 @@ export default function AdminClients() {
     (c.id ?? '').includes(searchTerm)
   );
 
+  const toTelHref = (phone?: string) => `tel:${(phone || '').replace(/\s+/g, '')}`;
+
   if (!sellerId && appUser?.role === 'super_admin') {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
@@ -95,7 +97,10 @@ export default function AdminClients() {
                   <div>
                     <h3 className="font-bold text-lg">{client.name || '—'} {client.firstName}</h3>
                     <p className="text-zinc-500 text-sm flex items-center gap-1">
-                      <Phone size={14} /> {client.phone || client.id}
+                      <Phone size={14} />
+                      <a href={toTelHref(client.phone || client.id)} className="hover:underline">
+                        {client.phone || client.id}
+                      </a>
                     </p>
                     {client.deliveryPlace && (
                       <p className="text-zinc-400 text-xs flex items-center gap-1 mt-1">
