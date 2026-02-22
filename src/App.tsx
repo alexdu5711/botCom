@@ -71,10 +71,18 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      console.log('[AUTH] onAuthStateChanged fired — user:', u ? `uid=${u.uid}, email=${u.email}` : 'null');
       setUser(u);
       if (u) {
-        const userData = await getAppUser(u.uid);
-        setAppUser(userData);
+        try {
+          console.log('[AUTH] Fetching appUser for uid:', u.uid);
+          const userData = await getAppUser(u.uid);
+          console.log('[AUTH] appUser fetched:', userData ? JSON.stringify(userData) : 'null (not found in users collection)');
+          setAppUser(userData);
+        } catch (err) {
+          console.error('[AUTH] Error fetching appUser:', err);
+          setAppUser(null);
+        }
       } else {
         setAppUser(null);
       }
@@ -108,13 +116,16 @@ const ProtectedRoute = ({ children, requireSuperAdmin = false }: { children: Rea
   }
 
   if (!user) {
+    console.warn('[ProtectedRoute] No Firebase user → redirect to /login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (requireSuperAdmin && appUser?.role !== 'super_admin') {
+    console.warn('[ProtectedRoute] requireSuperAdmin=true but appUser.role=', appUser?.role, '→ redirect to /admin');
     return <Navigate to="/admin" replace />;
   }
 
+  console.log('[ProtectedRoute] Access granted — user:', user.email, '| role:', appUser?.role ?? 'no appUser');
   return <>{children}</>;
 };
 
@@ -123,6 +134,7 @@ const ClientLayout = ({ children }: { children: React.ReactNode }) => {
   const { sellerId, clientId } = useParams();
   const location = useLocation();
   const [sellerName, setSellerName] = useState('Eco-Shop');
+  const [sellerLogo, setSellerLogo] = useState('');
   const setClientName = useCart(state => state.setClientName);
   const cartCount = useCart(state => state.items.reduce((acc, i) => acc + i.quantity, 0));
 
@@ -131,7 +143,10 @@ const ClientLayout = ({ children }: { children: React.ReactNode }) => {
       if (sellerId) {
         const { getSeller } = await import('./services/db');
         const seller = await getSeller(sellerId);
-        if (seller) setSellerName(seller.shopName);
+        if (seller) {
+          setSellerName(seller.shopName);
+          if (seller.logoUrl) setSellerLogo(seller.logoUrl);
+        }
       }
     };
     fetchSeller();
@@ -150,7 +165,16 @@ const ClientLayout = ({ children }: { children: React.ReactNode }) => {
     <div className="min-h-screen bg-zinc-50 pb-24">
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-4 py-3">
         <div className="flex items-center justify-between max-w-md mx-auto">
-          <h1 className="text-xl font-bold tracking-tight">{sellerName}</h1>
+          <div className="flex items-center gap-2.5">
+            {sellerLogo && (
+              <img
+                src={sellerLogo}
+                alt={sellerName}
+                className="w-8 h-8 rounded-lg object-cover shrink-0"
+              />
+            )}
+            <h1 className="text-xl font-bold tracking-tight">{sellerName}</h1>
+          </div>
           <Link to={`${base}/orders`} className="text-zinc-500 hover:text-black transition-colors">
             <Clock size={22} />
           </Link>

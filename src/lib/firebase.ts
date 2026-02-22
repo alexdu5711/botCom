@@ -1,5 +1,8 @@
 import { initializeApp, FirebaseApp } from "firebase/app";
-import { getFirestore, Firestore, initializeFirestore } from "firebase/firestore";
+// Use firestore/lite (REST-only, no WebChannel) to avoid 400 errors on the
+// Listen stream that break getDoc() in Firebase SDK v12 on Firebase Hosting.
+// All operations in this app are one-time reads/writes — no onSnapshot needed.
+import { getFirestore, Firestore } from "firebase/firestore/lite";
 import { getAuth, Auth } from "firebase/auth";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 
@@ -23,22 +26,20 @@ let isConfigured = false;
 
 if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
   try {
+    console.log('[Firebase] Initializing app with projectId:', firebaseConfig.projectId, '| databaseId:', DATABASE_ID);
     app = initializeApp(firebaseConfig);
-    
-    // Use initializeFirestore to enable experimentalForceLongPolling
-    // This fixes "client is offline" errors in restricted environments
-    db = initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-    }, DATABASE_ID);
-    
+
+    db = getFirestore(app, DATABASE_ID);
+
     auth = getAuth(app);
     storage = getStorage(app);
     isConfigured = true;
+    console.log('[Firebase] Initialization successful');
   } catch (error) {
-    console.error("Firebase initialization failed:", error);
+    console.error("[Firebase] Initialization failed:", error);
   }
 } else {
-  console.warn("Firebase API Key is missing. Please check your environment variables.");
+  console.warn("[Firebase] API Key is missing. Please check your environment variables.");
 }
 
 export { app, db, auth, storage, isConfigured };

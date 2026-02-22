@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Clock, CheckCircle2, XCircle, AlertCircle, Package } from 'lucide-react';
-import { getClientOrders } from '../../services/db';
+import { getClientOrders, getClient } from '../../services/db';
 import { Order } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { formatPrice } from '../../lib/utils';
@@ -18,7 +18,8 @@ export default function ClientOrders() {
     const load = async () => {
       if (!clientId || !sellerId) return;
       try {
-        const data = await getClientOrders(clientId, sellerId);
+        const client = await getClient(clientId, sellerId);
+        const data = await getClientOrders(clientId, sellerId, client?.phone);
         setOrders(data);
       } catch (error) {
         console.error("Error loading orders:", error);

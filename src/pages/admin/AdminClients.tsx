@@ -39,7 +39,9 @@ export default function AdminClients() {
 
   const filteredClients = clients.filter(c =>
     (c.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.phone ?? '').includes(searchTerm)
+    (c.firstName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.phone ?? '').includes(searchTerm) ||
+    (c.id ?? '').includes(searchTerm)
   );
 
   if (!sellerId && appUser?.role === 'super_admin') {

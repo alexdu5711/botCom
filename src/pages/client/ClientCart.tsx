@@ -131,18 +131,19 @@ export default function ClientCart() {
         setLoading(false);
         return;
       }
-      const clientUniqueId = formData.phone;
+      // clientId (URL param) is the immutable identifier — never replaced by formData.phone
+      const clientUniqueId = clientId!;
       const deliveryDetails = {
         ...formData,
         name: resolvedName
       };
-      // 1. Créer ou mettre à jour le client (nom/prénom toujours à jour)
+      // 1. Créer ou mettre à jour le client (nom/prénom/phone toujours à jour)
       const existingClient = await getClient(clientUniqueId, sellerId!);
       if (!existingClient) {
         await saveClient({
           id: clientUniqueId,
           sellerId: sellerId!,
-          phone: formData.phone,
+          phone: formData.phone,   // phone can differ from id
           name: resolvedName,
           firstName: formData.firstName,
           createdAt: new Date()
@@ -151,6 +152,7 @@ export default function ClientCart() {
         await updateClientInfo(clientUniqueId, sellerId!, {
           name: resolvedName,
           firstName: formData.firstName,
+          phone: formData.phone,   // update phone without touching id
         });
       }
 

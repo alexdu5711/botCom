@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Image as ImageIcon, Search, ChevronLeft, ChevronRight, Pencil, X, Check } from 'lucide-react';
-import { getProducts, getCategories, addProduct, uploadProductImage, deleteProduct, updateProduct } from '../../services/db';
+import { getProducts, getCategories, addProduct, uploadProductImage, deleteProduct, updateProduct, getSeller } from '../../services/db';
 import { Product, Category } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input, TextArea } from '../../components/ui/Input';
@@ -20,6 +20,7 @@ export default function AdminProducts() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [sellerLogo, setSellerLogo] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   
@@ -77,12 +78,14 @@ export default function AdminProducts() {
     if (!sellerId) return;
     setLoading(true);
     try {
-      const [prods, cats] = await Promise.all([
+      const [prods, cats, seller] = await Promise.all([
         getProducts(sellerId), 
-        getCategories(sellerId)
+        getCategories(sellerId),
+        getSeller(sellerId)
       ]);
       setProducts(prods);
       setCategories(cats);
+      setSellerLogo(seller?.logoUrl || '');
       if (cats.length > 0) setNewProduct(prev => ({ ...prev, categoryId: cats[0].id }));
     } catch (error) {
       console.error("Error loading data:", error);
@@ -308,7 +311,7 @@ export default function AdminProducts() {
               <Card key={product.id} className="group overflow-hidden flex flex-col h-full">
                 <div className="aspect-[4/5] bg-zinc-100 overflow-hidden relative">
                   <img 
-                    src={product.imageUrl || "https://picsum.photos/400/500?random=" + product.id} 
+                    src={product.imageUrl || sellerLogo || "https://picsum.photos/400/500?random=" + product.id} 
                     alt={product.name} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     referrerPolicy="no-referrer"

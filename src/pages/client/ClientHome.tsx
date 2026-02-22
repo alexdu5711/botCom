@@ -28,6 +28,7 @@ export default function ClientHome() {
   const [loading, setLoading] = useState(true);
   const [sellerLogo, setSellerLogo] = useState('');
   const addItem = useCart(state => state.addItem);
+  const clientName = useCart(state => state.clientName);
 
   useEffect(() => {
     const checkClient = async () => {
@@ -141,7 +142,9 @@ export default function ClientHome() {
   if (showDeliveryForm) {
     return (
       <div className="max-w-md mx-auto py-20">
-        <h2 className="text-xl font-bold mb-4">Bienvenue !</h2>
+        <h2 className="text-xl font-bold mb-4">
+          {clientName ? `Bienvenue, ${clientName} !` : 'Bienvenue !'}
+        </h2>
         <p className="mb-4 text-zinc-500">Indiquez votre lieu de livraison pour accéder à la boutique.</p>
         <div className="flex gap-2 mb-4">
           <input

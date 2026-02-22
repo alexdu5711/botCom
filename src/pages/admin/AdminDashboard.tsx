@@ -7,7 +7,7 @@ import { Order, OrderStatus, Seller } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { formatPrice } from '../../lib/utils';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 import { useAuth } from '../../App';
@@ -24,6 +24,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [pendingChange, setPendingChange] = useState<{ orderId: string; newStatus: OrderStatus; ref: string } | null>(null);
 
   const loadOrders = async () => {
@@ -64,18 +67,42 @@ export default function AdminDashboard() {
     }
   };
 
-  const filteredOrders = filter === 'all' 
-    ? orders 
-    : orders.filter(o => o.status === filter);
-
-  const stats = {
-    totalRevenue: orders.filter(o => o.status === 'processed').reduce((acc, o) => acc + o.total, 0),
-    totalOrders: orders.length,
-    pendingOrders: orders.filter(o => o.status === 'processing').length,
-    processedOrders: orders.filter(o => o.status === 'processed').length,
+  const getOrderDate = (order: Order): Date => {
+    const ts = order.createdAt as any;
+    if (ts?.toDate) return ts.toDate();
+    if (ts?.seconds) return new Date(ts.seconds * 1000);
+    return new Date(ts);
   };
 
-  const productSales = orders.reduce((acc: Record<string, number>, order) => {
+  const dateFilteredOrders = orders.filter(order => {
+    if (dateFilter === 'all') return true;
+    const d = getOrderDate(order);
+    const now = new Date();
+    if (dateFilter === 'today') return d >= startOfDay(now) && d <= endOfDay(now);
+    if (dateFilter === 'week') return d >= startOfWeek(now, { weekStartsOn: 1 });
+    if (dateFilter === 'month') return d >= startOfMonth(now);
+    if (dateFilter === 'custom') {
+      const from = customFrom ? startOfDay(new Date(customFrom)) : null;
+      const to = customTo ? endOfDay(new Date(customTo)) : null;
+      if (from && to) return d >= from && d <= to;
+      if (from) return d >= from;
+      if (to) return d <= to;
+    }
+    return true;
+  });
+
+  const filteredOrders = filter === 'all'
+    ? dateFilteredOrders
+    : dateFilteredOrders.filter(o => o.status === filter);
+
+  const stats = {
+    totalRevenue: dateFilteredOrders.filter(o => o.status === 'processed').reduce((acc, o) => acc + o.total, 0),
+    totalOrders: dateFilteredOrders.length,
+    pendingOrders: dateFilteredOrders.filter(o => o.status === 'processing').length,
+    processedOrders: dateFilteredOrders.filter(o => o.status === 'processed').length,
+  };
+
+  const productSales = dateFilteredOrders.reduce((acc: Record<string, number>, order) => {
     order.items.forEach(item => {
       acc[item.name] = (acc[item.name] || 0) + item.quantity;
     });
@@ -99,32 +126,7 @@ export default function AdminDashboard() {
       default:
         return 'text-zinc-500 bg-zinc-50';
     }
-  };
-
-  const seedProducts = async () => {
-    if (!sellerId) return;
-    const { addProduct } = await import('../../services/db');
-    const productsToAdd = [
-      { name: "Azzaro Chrome", description: "Fragrances intenses, boisées et charismatiques.", price: 3500, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
-      { name: "Invictus (Paco Rabanne)", description: "Fragrance boisée aquatique pour homme.", price: 4500, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
-      { name: "Sauvage Dior", description: "Une composition d'une fraîcheur radicale, dictée par un nom qui sonne comme un manifeste.", price: 5500, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
-      { name: "One Million (Paco Rabanne)", description: "L'élégance d'un lingot d'or combinée à une fragrance addictive.", price: 4200, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
-      { name: "Creed Aventus", description: "Un parfum boisé, fruité et riche.", price: 12000, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
-      { name: "Terre d'Hermès", description: "Un parfum entre terre et ciel, une structure verticale bâtie autour du bois.", price: 4800, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" },
-      { name: "Hugo Red", description: "Un parfum dynamique pour l'homme qui veut repousser ses limites.", price: 3200, categoryId: "0ya2TQZzX3zzvrG97G1c", sellerId: "Q0H645W", imageUrl: "" }
-    ];
-
-    try {
-      for (const product of productsToAdd) {
-        await addProduct(product);
-      }
-      alert("Produits ajoutés avec succès !");
-      loadOrders();
-    } catch (error) {
-      console.error("Error seeding products:", error);
-      alert("Erreur lors de l'ajout des produits.");
-    }
-  };
+  };
 
   if (!sellerId && appUser?.role === 'super_admin') {
     return (
@@ -172,33 +174,67 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Tableau de bord</h1>
-          <p className="text-zinc-500">Gérez vos commandes et suivez vos ventes.</p>
-          {appUser?.role === 'super_admin' && (
-            <button 
-              onClick={seedProducts}
-              className="mt-2 text-[10px] text-zinc-400 hover:text-black transition-colors underline"
-            >
-              Ajouter les produits de démonstration
-            </button>
-          )}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Tableau de bord</h1>
+            <p className="text-zinc-500">Gérez vos commandes et suivez vos ventes.</p>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+            {(['all', 'processing', 'processed', 'cancelled', 'refused'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setFilter(s)}
+                className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                  filter === s
+                    ? "bg-black text-white shadow-lg shadow-black/10"
+                    : "bg-white text-zinc-500 border border-zinc-100 hover:bg-zinc-50"
+                }`}
+              >
+                {s === 'all' ? 'Toutes' : s === 'processing' ? 'En cours' : s === 'processed' ? 'Traitées' : s === 'cancelled' ? 'Annulées' : 'Refusées'}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-          {(['all', 'processing', 'processed', 'cancelled', 'refused'] as const).map(s => (
+
+        {/* Date filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Calendar size={16} className="text-zinc-400 shrink-0" />
+          {(['today', 'all', 'week', 'month', 'custom'] as const).map(d => (
             <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                filter === s 
-                  ? "bg-black text-white shadow-lg shadow-black/10" 
-                  : "bg-white text-zinc-500 border border-zinc-100 hover:bg-zinc-50"
+              key={d}
+              onClick={() => setDateFilter(d)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                dateFilter === d
+                  ? "bg-zinc-900 text-white"
+                  : "bg-white text-zinc-500 border border-zinc-200 hover:bg-zinc-50"
               }`}
             >
-              {s === 'all' ? 'Toutes' : s === 'processing' ? 'En cours' : s === 'processed' ? 'Traitées' : s === 'cancelled' ? 'Annulées' : 'Refusées'}
+              {d === 'all' ? 'Toutes périodes' : d === 'today' ? "Aujourd'hui" : d === 'week' ? 'Cette semaine' : d === 'month' ? 'Ce mois' : 'Personnalisé'}
             </button>
           ))}
+          {dateFilter === 'custom' && (
+            <div className="flex items-center gap-2 ml-1">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={e => setCustomFrom(e.target.value)}
+                className="px-2 py-1.5 text-xs border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-black/10"
+              />
+              <span className="text-xs text-zinc-400">→</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={e => setCustomTo(e.target.value)}
+                className="px-2 py-1.5 text-xs border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-black/10"
+              />
+            </div>
+          )}
+          {dateFilter !== 'all' && (
+            <span className="text-xs text-zinc-400 ml-1">
+              {dateFilteredOrders.length} commande{dateFilteredOrders.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
       </div>
 
@@ -374,3 +410,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

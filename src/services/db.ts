@@ -1,17 +1,16 @@
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy,
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  where,
   getDoc,
   setDoc,
   Timestamp
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { db } from "../lib/firebase";
 import { Category, Product, Order, Client, OrderStatus, Seller, AppUser } from "../types";
 
@@ -72,11 +71,15 @@ export const createAppUser = async (user: Omit<AppUser, 'createdAt'>) => {
 
 export const getAppUser = async (uid: string): Promise<AppUser | null> => {
   const database = ensureDb();
+  console.log('[DB] getAppUser — fetching users/' + uid);
   const docRef = doc(database, "users", uid);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    return { uid: docSnap.id, ...docSnap.data() } as AppUser;
+    const user = { uid: docSnap.id, ...docSnap.data() } as AppUser;
+    console.log('[DB] getAppUser — found:', JSON.stringify(user));
+    return user;
   }
+  console.warn('[DB] getAppUser — document users/' + uid + ' does not exist');
   return null;
 };
 
@@ -155,7 +158,7 @@ export const createOrder = async (orderData: Omit<Order, 'id' | 'reference' | 'c
   const random = Math.floor(1000 + Math.random() * 9000);
   const reference = `CO-${dateStr}-${random}`;
   
-  const docRef = await addDoc(collection(database, "orders"), {
+  await addDoc(collection(database, "orders"), {
     ...orderData,
     reference,
     createdAt: Timestamp.now()
@@ -177,18 +180,33 @@ export const getOrders = async (sellerId: string): Promise<Order[]> => {
   });
 };
 
-export const getClientOrders = async (clientId: string, sellerId: string): Promise<Order[]> => {
+export const getClientOrders = async (clientId: string, sellerId: string, phone?: string): Promise<Order[]> => {
   const database = ensureDb();
-  const q = query(
-    collection(database, "orders"), 
-    where("clientId", "==", clientId), 
-    where("sellerId", "==", sellerId)
-  );
-  const snapshot = await getDocs(q);
-  const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
 
-  // Sort client-side to avoid Firestore index requirement
-  return orders.sort((a, b) => {
+  // Query 1: orders where clientId == URL param (current format)
+  const q1 = query(collection(database, "orders"), where("clientId", "==", clientId), where("sellerId", "==", sellerId));
+  const queryPromises = [getDocs(q1)];
+
+  // Query 2: orders where clientId == phone (backward compat — old orders stored phone as clientId)
+  if (phone && phone !== clientId) {
+    const q2 = query(collection(database, "orders"), where("clientId", "==", phone), where("sellerId", "==", sellerId));
+    queryPromises.push(getDocs(q2));
+  }
+
+  // Query 3: orders where deliveryDetails.phone matches (catches orders submitted with this phone)
+  const phoneToSearch = phone || clientId;
+  const q3 = query(collection(database, "orders"), where("deliveryDetails.phone", "==", phoneToSearch), where("sellerId", "==", sellerId));
+  queryPromises.push(getDocs(q3));
+
+  const snapshots = await Promise.all(queryPromises);
+  const orderMap = new Map<string, Order>();
+  for (const snap of snapshots) {
+    for (const d of snap.docs) {
+      orderMap.set(d.id, { id: d.id, ...d.data() } as Order);
+    }
+  }
+
+  return Array.from(orderMap.values()).sort((a, b) => {
     const dateA = (a.createdAt as any)?.seconds || 0;
     const dateB = (b.createdAt as any)?.seconds || 0;
     return dateB - dateA;
@@ -224,7 +242,7 @@ export const saveClient = async (client: Client) => {
   }, { merge: true });
 };
 
-export const updateClientInfo = async (clientId: string, sellerId: string, data: { name?: string; firstName?: string; deliveryPlace?: string }) => {
+export const updateClientInfo = async (clientId: string, sellerId: string, data: { name?: string; firstName?: string; deliveryPlace?: string; phone?: string }) => {
   const database = ensureDb();
   const clientDocId = `${sellerId}_${clientId}`;
   return await updateDoc(doc(database, "clients", clientDocId), data);
