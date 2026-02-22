@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Clock, CheckCircle2, XCircle, AlertCircle, Search, Filter, Phone, MapPin, Calendar } from 'lucide-react';
 import { getOrders, updateOrderStatus, getSeller } from '../../services/db';
@@ -46,7 +46,8 @@ export default function AdminDashboard() {
     loadOrders();
   }, [sellerId]);
 
-  const handleStatusChange = (orderId: string, newStatus: OrderStatus, ref: string) => {
+  const handleStatusChange = (orderId: string, newStatus: OrderStatus, ref: string, currentStatus: OrderStatus) => {
+    if (currentStatus !== 'processing') return;
     setPendingChange({ orderId, newStatus, ref });
   };
 
@@ -114,6 +115,47 @@ export default function AdminDashboard() {
     .sort(([, a], [, b]) => (b as number) - (a as number))
     .slice(0, 5);
 
+  const dailyStatusData = Object.values(
+    dateFilteredOrders.reduce((acc, order) => {
+      const d = getOrderDate(order);
+      const key = format(d, 'yyyy-MM-dd');
+      if (!acc[key]) {
+        acc[key] = {
+          key,
+          label: format(d, 'dd/MM'),
+          processing: 0,
+          processed: 0,
+          cancelled: 0,
+          refused: 0,
+          total: 0,
+        };
+      }
+      acc[key][order.status] += 1;
+      acc[key].total += 1;
+      return acc;
+    }, {} as Record<string, {
+      key: string;
+      label: string;
+      processing: number;
+      processed: number;
+      cancelled: number;
+      refused: number;
+      total: number;
+    }>)
+  ).sort((a, b) => a.key.localeCompare(b.key));
+
+  const visibleDailyStatusData = dailyStatusData.slice(-14);
+  const statusSeries: Array<{ key: OrderStatus; label: string; color: string }> = [
+    { key: 'processing', label: 'En cours', color: '#f59e0b' },
+    { key: 'processed', label: 'Traitee', color: '#22c55e' },
+    { key: 'cancelled', label: 'Annulee', color: '#71717a' },
+    { key: 'refused', label: 'Refusee', color: '#ef4444' },
+  ];
+  const maxDailyStatusCount = Math.max(
+    1,
+    ...visibleDailyStatusData.map(d => Math.max(d.processing, d.processed, d.cancelled, d.refused))
+  );
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'processing':
@@ -136,8 +178,8 @@ export default function AdminDashboard() {
           <Search size={32} />
         </div>
         <div>
-          <h2 className="text-xl font-bold">Aucun vendeur sélectionné</h2>
-          <p className="text-zinc-500">Veuillez d'abord sélectionner un vendeur dans la liste pour voir ses données.</p>
+          <h2 className="text-xl font-bold">Aucun vendeur sÃ©lectionnÃ©</h2>
+          <p className="text-zinc-500">Veuillez d'abord sÃ©lectionner un vendeur dans la liste pour voir ses donnÃ©es.</p>
         </div>
         <Button onClick={() => window.location.href = '/admin/sellers'}>
           Voir les vendeurs
@@ -148,9 +190,9 @@ export default function AdminDashboard() {
 
   const statusLabels: Record<OrderStatus, string> = {
     processing: 'En cours',
-    processed: 'Traité',
-    cancelled: 'Annulé',
-    refused: 'Refusé',
+    processed: 'TraitÃ©',
+    cancelled: 'AnnulÃ©',
+    refused: 'RefusÃ©',
   };
 
   return (
@@ -162,7 +204,7 @@ export default function AdminDashboard() {
             <h3 className="text-lg font-bold">Confirmer le changement</h3>
             <p className="text-zinc-600 text-sm">
               Passer la commande <span className="font-mono font-bold">{pendingChange.ref}</span> au statut{' '}
-              <span className="font-bold">« {statusLabels[pendingChange.newStatus]} »</span> ?
+              <span className="font-bold">Â« {statusLabels[pendingChange.newStatus]} Â»</span> ?
             </p>
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setPendingChange(null)}>
@@ -179,7 +221,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Tableau de bord</h1>
-            <p className="text-zinc-500">Gérez vos commandes et suivez vos ventes.</p>
+            <p className="text-zinc-500">GÃ©rez vos commandes et suivez vos ventes.</p>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
             {(['all', 'processing', 'processed', 'cancelled', 'refused'] as const).map(s => (
@@ -192,7 +234,7 @@ export default function AdminDashboard() {
                     : "bg-white text-zinc-500 border border-zinc-100 hover:bg-zinc-50"
                 }`}
               >
-                {s === 'all' ? 'Toutes' : s === 'processing' ? 'En cours' : s === 'processed' ? 'Traitées' : s === 'cancelled' ? 'Annulées' : 'Refusées'}
+                {s === 'all' ? 'Toutes' : s === 'processing' ? 'En cours' : s === 'processed' ? 'TraitÃ©es' : s === 'cancelled' ? 'AnnulÃ©es' : 'RefusÃ©es'}
               </button>
             ))}
           </div>
@@ -211,7 +253,7 @@ export default function AdminDashboard() {
                   : "bg-white text-zinc-500 border border-zinc-200 hover:bg-zinc-50"
               }`}
             >
-              {d === 'all' ? 'Toutes périodes' : d === 'today' ? "Aujourd'hui" : d === 'week' ? 'Cette semaine' : d === 'month' ? 'Ce mois' : 'Personnalisé'}
+              {d === 'all' ? 'Toutes pÃ©riodes' : d === 'today' ? "Aujourd'hui" : d === 'week' ? 'Cette semaine' : d === 'month' ? 'Ce mois' : 'PersonnalisÃ©'}
             </button>
           ))}
           {dateFilter === 'custom' && (
@@ -222,7 +264,7 @@ export default function AdminDashboard() {
                 onChange={e => setCustomFrom(e.target.value)}
                 className="px-2 py-1.5 text-xs border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-black/10"
               />
-              <span className="text-xs text-zinc-400">→</span>
+              <span className="text-xs text-zinc-400">â†’</span>
               <input
                 type="date"
                 value={customTo}
@@ -244,30 +286,110 @@ export default function AdminDashboard() {
         <Card className="p-4 bg-white border-zinc-100">
           <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Chiffre d'affaires</p>
           <p className="text-2xl font-bold mt-1">{formatPrice(stats.totalRevenue)}</p>
-          <div className="mt-2 text-[10px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full inline-block">Commandes traitées</div>
+          <div className="mt-2 text-[10px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full inline-block">Commandes traitÃ©es</div>
         </Card>
         <Card className="p-4 bg-white border-zinc-100">
           <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Total Commandes</p>
           <p className="text-2xl font-bold mt-1">{stats.totalOrders}</p>
-          <div className="mt-2 text-[10px] text-zinc-500 font-bold bg-zinc-100 px-2 py-0.5 rounded-full inline-block">Toutes périodes</div>
+          <div className="mt-2 text-[10px] text-zinc-500 font-bold bg-zinc-100 px-2 py-0.5 rounded-full inline-block">Toutes pÃ©riodes</div>
         </Card>
         <Card className="p-4 bg-white border-zinc-100">
           <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">En attente</p>
           <p className="text-2xl font-bold mt-1 text-amber-600">{stats.pendingOrders}</p>
-          <div className="mt-2 text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full inline-block">À traiter</div>
+          <div className="mt-2 text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full inline-block">Ã€ traiter</div>
         </Card>
         <Card className="p-4 bg-white border-zinc-100">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Traitées</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">TraitÃ©es</p>
           <p className="text-2xl font-bold mt-1 text-green-600">{stats.processedOrders}</p>
-          <div className="mt-2 text-[10px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full inline-block">Livrées</div>
+          <div className="mt-2 text-[10px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full inline-block">LivrÃ©es</div>
         </Card>
       </div>
+      <Card className="p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">Commandes par jour (statuts)</h2>
+          <span className="text-xs text-zinc-400">14 derniers jours visibles</span>
+        </div>
+        {visibleDailyStatusData.length > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <div
+                className="min-w-[640px]"
+                style={{ minWidth: `${Math.max(640, visibleDailyStatusData.length * 46)}px` }}
+              >
+                <svg
+                  viewBox={`0 0 ${Math.max(640, visibleDailyStatusData.length * 46)} 210`}
+                  className="w-full h-56"
+                >
+                  <line
+                    x1="20"
+                    y1="190"
+                    x2={Math.max(640, visibleDailyStatusData.length * 46) - 20}
+                    y2="190"
+                    stroke="#e4e4e7"
+                    strokeWidth="1"
+                  />
+                  {[1, 2, 3].map(i => (
+                    <line
+                      key={i}
+                      x1="20"
+                      y1={190 - i * 45}
+                      x2={Math.max(640, visibleDailyStatusData.length * 46) - 20}
+                      y2={190 - i * 45}
+                      stroke="#f4f4f5"
+                      strokeWidth="1"
+                    />
+                  ))}
+                  {statusSeries.map(series => {
+                    const width = Math.max(640, visibleDailyStatusData.length * 46);
+                    const points = visibleDailyStatusData
+                      .map((day, index) => {
+                        const x = visibleDailyStatusData.length === 1
+                          ? width / 2
+                          : 20 + (index * (width - 40)) / (visibleDailyStatusData.length - 1);
+                        const y = 190 - ((day[series.key] / maxDailyStatusCount) * 170);
+                        return `${x},${y}`;
+                      })
+                      .join(' ');
+                    return (
+                      <g key={series.key}>
+                        <polyline fill="none" stroke={series.color} strokeWidth="2.5" points={points} />
+                        {visibleDailyStatusData.map((day, index) => {
+                          const x = visibleDailyStatusData.length === 1
+                            ? width / 2
+                            : 20 + (index * (width - 40)) / (visibleDailyStatusData.length - 1);
+                          const y = 190 - ((day[series.key] / maxDailyStatusCount) * 170);
+                          return <circle key={`${series.key}-${day.key}`} cx={x} cy={y} r="2.5" fill={series.color} />;
+                        })}
+                      </g>
+                    );
+                  })}
+                </svg>
+                <div className="mt-1 flex justify-between text-[10px] font-medium text-zinc-500 px-1">
+                  {visibleDailyStatusData.map(day => (
+                    <span key={`label-${day.key}`}>{day.label}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs text-zinc-600">
+              {statusSeries.map(series => (
+                <span key={series.key} className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: series.color }} />
+                  {series.label}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-zinc-500 text-center py-6">Aucune commande sur la période sélectionnée.</p>
+        )}
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Orders List */}
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Commandes récentes</h2>
+            <h2 className="text-xl font-bold">Commandes rÃ©centes</h2>
           </div>
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -370,7 +492,8 @@ export default function AdminDashboard() {
                           <Button
                             variant={order.status === 'processing' ? 'primary' : 'outline'}
                             size="sm"
-                            onClick={() => handleStatusChange(order.id, 'processing', order.reference)}
+                            onClick={() => handleStatusChange(order.id, 'processing', order.reference, order.status)}
+                            disabled={order.status !== 'processing'}
                             className="text-xs"
                           >
                             En cours
@@ -378,26 +501,29 @@ export default function AdminDashboard() {
                           <Button
                             variant={order.status === 'processed' ? 'primary' : 'outline'}
                             size="sm"
-                            onClick={() => handleStatusChange(order.id, 'processed', order.reference)}
+                            onClick={() => handleStatusChange(order.id, 'processed', order.reference, order.status)}
+                            disabled={order.status !== 'processing'}
                             className="text-xs"
                           >
-                            Traité
+                            TraitÃ©
                           </Button>
                           <Button
                             variant={order.status === 'cancelled' ? 'danger' : 'outline'}
                             size="sm"
-                            onClick={() => handleStatusChange(order.id, 'cancelled', order.reference)}
+                            onClick={() => handleStatusChange(order.id, 'cancelled', order.reference, order.status)}
+                            disabled={order.status !== 'processing'}
                             className="text-xs"
                           >
-                            Annulé
+                            AnnulÃ©
                           </Button>
                           <Button
                             variant={order.status === 'refused' ? 'danger' : 'outline'}
                             size="sm"
-                            onClick={() => handleStatusChange(order.id, 'refused', order.reference)}
+                            onClick={() => handleStatusChange(order.id, 'refused', order.reference, order.status)}
+                            disabled={order.status !== 'processing'}
                             className="text-xs"
                           >
-                            Refusé
+                            RefusÃ©
                           </Button>
                         </div>
                       </div>
@@ -409,7 +535,7 @@ export default function AdminDashboard() {
                   <div className="w-20 h-20 bg-zinc-50 text-zinc-300 rounded-full flex items-center justify-center mx-auto">
                     <Clock size={40} />
                   </div>
-                  <p className="text-zinc-500 font-medium">Aucune commande trouvée</p>
+                  <p className="text-zinc-500 font-medium">Aucune commande trouvÃ©e</p>
                 </div>
               )}
             </div>
@@ -435,7 +561,7 @@ export default function AdminDashboard() {
                 </div>
               ))
             ) : (
-              <p className="text-sm text-zinc-500 text-center py-4">Aucune donnée de vente</p>
+              <p className="text-sm text-zinc-500 text-center py-4">Aucune donnÃ©e de vente</p>
             )}
           </Card>
         </div>
@@ -443,4 +569,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
 
