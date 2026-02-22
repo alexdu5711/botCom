@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Phone, Calendar, Search, Mail } from 'lucide-react';
+import { Users, Phone, Calendar, Search, MapPin } from 'lucide-react';
 import { getAllClients } from '../../services/db';
 import { Client } from '../../types';
 import { Card } from '../../components/ui/Card';
@@ -37,9 +37,9 @@ export default function AdminClients() {
     loadClients();
   }, [sellerId]);
 
-  const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.phone.includes(searchTerm)
+  const filteredClients = clients.filter(c =>
+    (c.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.phone ?? '').includes(searchTerm)
   );
 
   if (!sellerId && appUser?.role === 'super_admin') {
@@ -88,13 +88,18 @@ export default function AdminClients() {
               <Card key={client.id} className="p-6 space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-black text-white rounded-2xl flex items-center justify-center text-xl font-bold">
-                    {client.name.charAt(0)}
+                    {(client.name || client.phone || '?').charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg">{client.name} {client.firstName}</h3>
+                    <h3 className="font-bold text-lg">{client.name || '—'} {client.firstName}</h3>
                     <p className="text-zinc-500 text-sm flex items-center gap-1">
-                      <Phone size={14} /> {client.phone}
+                      <Phone size={14} /> {client.phone || client.id}
                     </p>
+                    {client.deliveryPlace && (
+                      <p className="text-zinc-400 text-xs flex items-center gap-1 mt-1">
+                        <MapPin size={12} /> {client.deliveryPlace}
+                      </p>
+                    )}
                   </div>
                 </div>
                 

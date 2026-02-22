@@ -4,7 +4,9 @@
       "Bash(npx firebase storage:cors:*)",
       "Bash(gsutil:*)",
       "Bash(gcloud auth list:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(node:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

@@ -7,14 +7,17 @@ interface CartItem extends Product {
 
 interface CartStore {
   items: CartItem[];
+  clientName: string;
   addItem: (product: Product) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
+  setClientName: (name: string) => void;
 }
 
 export const useCart = create<CartStore>((set, get) => ({
   items: [],
+  clientName: '',
   addItem: (product) => {
     const items = get().items;
     const existingItem = items.find((item) => item.id === product.id);
@@ -43,4 +46,5 @@ export const useCart = create<CartStore>((set, get) => ({
     });
   },
   clearCart: () => set({ items: [] }),
+  setClientName: (name) => set({ clientName: name.trim() }),
 }));

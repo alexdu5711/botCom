@@ -4,6 +4,8 @@ export interface Seller {
   shopName: string; // Displayed shop name
   phone: string;
   logoUrl?: string;
+  whatsappApiKey?: string;
+  whatsappSender?: string;
   createdAt: any;
 }
 

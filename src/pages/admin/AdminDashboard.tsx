@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Clock, CheckCircle2, XCircle, AlertCircle, Search, Filter, Phone, MapPin, Calendar } from 'lucide-react';
-import { getOrders, updateOrderStatus } from '../../services/db';
-import { Order, OrderStatus } from '../../types';
+import { getOrders, updateOrderStatus, getSeller } from '../../services/db';
+import { notifyStatusChange } from '../../services/whatsapp';
+import { Order, OrderStatus, Seller } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { formatPrice } from '../../lib/utils';
@@ -21,14 +22,17 @@ export default function AdminDashboard() {
     
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seller, setSeller] = useState<Seller | null>(null);
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
+  const [pendingChange, setPendingChange] = useState<{ orderId: string; newStatus: OrderStatus; ref: string } | null>(null);
 
   const loadOrders = async () => {
     if (!sellerId) return;
     setLoading(true);
     try {
-      const data = await getOrders(sellerId);
+      const [data, sellerData] = await Promise.all([getOrders(sellerId), getSeller(sellerId)]);
       setOrders(data);
+      setSeller(sellerData);
     } catch (error) {
       console.error("Error loading orders:", error);
     } finally {
@@ -40,12 +44,23 @@ export default function AdminDashboard() {
     loadOrders();
   }, [sellerId]);
 
-  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+  const handleStatusChange = (orderId: string, newStatus: OrderStatus, ref: string) => {
+    setPendingChange({ orderId, newStatus, ref });
+  };
+
+  const confirmStatusChange = async () => {
+    if (!pendingChange) return;
     try {
-      await updateOrderStatus(orderId, newStatus);
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      await updateOrderStatus(pendingChange.orderId, pendingChange.newStatus);
+      setOrders(orders.map(o => o.id === pendingChange.orderId ? { ...o, status: pendingChange.newStatus } : o));
+      const order = orders.find(o => o.id === pendingChange.orderId);
+      if (seller && order) {
+        notifyStatusChange(seller.id, order.clientId, pendingChange.ref, pendingChange.newStatus);
+      }
     } catch (error) {
       console.error("Error updating status:", error);
+    } finally {
+      setPendingChange(null);
     }
   };
 
@@ -128,8 +143,35 @@ export default function AdminDashboard() {
     );
   }
 
+  const statusLabels: Record<OrderStatus, string> = {
+    processing: 'En cours',
+    processed: 'Traité',
+    cancelled: 'Annulé',
+    refused: 'Refusé',
+  };
+
   return (
     <div className="space-y-8">
+      {/* Confirmation Modal */}
+      {pendingChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4 space-y-4">
+            <h3 className="text-lg font-bold">Confirmer le changement</h3>
+            <p className="text-zinc-600 text-sm">
+              Passer la commande <span className="font-mono font-bold">{pendingChange.ref}</span> au statut{' '}
+              <span className="font-bold">« {statusLabels[pendingChange.newStatus]} »</span> ?
+            </p>
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setPendingChange(null)}>
+                Annuler
+              </Button>
+              <Button variant="primary" className="flex-1" onClick={confirmStatusChange}>
+                Confirmer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Tableau de bord</h1>
@@ -256,34 +298,34 @@ export default function AdminDashboard() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
-                          <Button 
-                            variant={order.status === 'processing' ? 'primary' : 'outline'} 
-                            size="sm" 
-                            onClick={() => handleStatusChange(order.id, 'processing')}
+                          <Button
+                            variant={order.status === 'processing' ? 'primary' : 'outline'}
+                            size="sm"
+                            onClick={() => handleStatusChange(order.id, 'processing', order.reference)}
                             className="text-xs"
                           >
                             En cours
                           </Button>
-                          <Button 
-                            variant={order.status === 'processed' ? 'primary' : 'outline'} 
-                            size="sm" 
-                            onClick={() => handleStatusChange(order.id, 'processed')}
+                          <Button
+                            variant={order.status === 'processed' ? 'primary' : 'outline'}
+                            size="sm"
+                            onClick={() => handleStatusChange(order.id, 'processed', order.reference)}
                             className="text-xs"
                           >
                             Traité
                           </Button>
-                          <Button 
-                            variant={order.status === 'cancelled' ? 'danger' : 'outline'} 
-                            size="sm" 
-                            onClick={() => handleStatusChange(order.id, 'cancelled')}
+                          <Button
+                            variant={order.status === 'cancelled' ? 'danger' : 'outline'}
+                            size="sm"
+                            onClick={() => handleStatusChange(order.id, 'cancelled', order.reference)}
                             className="text-xs"
                           >
                             Annulé
                           </Button>
-                          <Button 
-                            variant={order.status === 'refused' ? 'danger' : 'outline'} 
-                            size="sm" 
-                            onClick={() => handleStatusChange(order.id, 'refused')}
+                          <Button
+                            variant={order.status === 'refused' ? 'danger' : 'outline'}
+                            size="sm"
+                            onClick={() => handleStatusChange(order.id, 'refused', order.reference)}
                             className="text-xs"
                           >
                             Refusé

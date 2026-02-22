@@ -23,7 +23,6 @@ let isConfigured = false;
 
 if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
   try {
-    console.log("Initializing Firebase for project:", firebaseConfig.projectId, "Database:", DATABASE_ID);
     app = initializeApp(firebaseConfig);
     
     // Use initializeFirestore to enable experimentalForceLongPolling

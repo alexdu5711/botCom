@@ -7,27 +7,59 @@ import { Button } from '../../components/ui/Button';
 import { Input, TextArea } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 import { formatPrice } from '../../lib/utils';
-import { createOrder, saveClient, getClient, getSeller } from '../../services/db';
+import { createOrder, saveClient, getClient, getSeller, updateClientInfo } from '../../services/db';
+import { notifyNewOrder } from '../../services/whatsapp';
+import { Seller } from '../../types';
+
+const splitNameAndFirstName = (rawValue: string) => {
+  const value = rawValue.trim();
+  if (!value) return { name: '', firstName: '' };
+
+  if (value.includes('+')) {
+    const [namePart, ...firstNameParts] = value.split('+').map(part => part.trim()).filter(Boolean);
+    return { name: namePart || '', firstName: firstNameParts.join(' ') };
+  }
+
+  const parts = value.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return { name: parts[0], firstName: parts.slice(1).join(' ') };
+  }
+
+  return { name: value, firstName: '' };
+};
 
 export default function ClientCart() {
   const { sellerId, clientId } = useParams();
   const navigate = useNavigate();
   const { items, updateQuantity, removeItem, clearCart } = useCart();
+  const clientNameFromStore = useCart(state => state.clientName);
   const total = useCart(state => state.items.reduce((acc, item) => acc + item.price * item.quantity, 0));
   const [loading, setLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [sellerLogo, setSellerLogo] = useState('');
+  const [seller, setSeller] = useState<Seller | null>(null);
 
   const [formData, setFormData] = useState({
-    name: '',
+    name: clientNameFromStore || '',
     firstName: '',
     phone: clientId || '',
     location: '',
     date: '',
     details: ''
   });
+
+  useEffect(() => {
+    if (!clientNameFromStore) return;
+    const { name, firstName } = splitNameAndFirstName(clientNameFromStore);
+    setFormData(prev => {
+      const nextName = prev.name || name;
+      const nextFirstName = prev.firstName || firstName;
+      if (nextName === prev.name && nextFirstName === prev.firstName) return prev;
+      return { ...prev, name: nextName, firstName: nextFirstName };
+    });
+  }, [clientNameFromStore]);
 
   useEffect(() => {
     const prefill = async () => {
@@ -41,7 +73,10 @@ export default function ClientCart() {
       }
       if (client?.name) setFormData(prev => ({ ...prev, name: client.name }));
       if (client?.firstName) setFormData(prev => ({ ...prev, firstName: client.firstName! }));
-      if (seller?.logoUrl) setSellerLogo(seller.logoUrl);
+      if (seller) {
+        setSeller(seller);
+        if (seller.logoUrl) setSellerLogo(seller.logoUrl);
+      }
     };
     prefill();
   }, [clientId, sellerId]);
@@ -90,17 +125,32 @@ export default function ClientCart() {
     setLoading(true);
     setError(null);
     try {
+      const resolvedName = (formData.name || clientNameFromStore).trim();
+      if (!resolvedName) {
+        setError('Veuillez renseigner votre nom.');
+        setLoading(false);
+        return;
+      }
       const clientUniqueId = formData.phone;
-      // 1. Check if client exists for this specific seller, if not save them
+      const deliveryDetails = {
+        ...formData,
+        name: resolvedName
+      };
+      // 1. Créer ou mettre à jour le client (nom/prénom toujours à jour)
       const existingClient = await getClient(clientUniqueId, sellerId!);
       if (!existingClient) {
         await saveClient({
           id: clientUniqueId,
           sellerId: sellerId!,
           phone: formData.phone,
-          name: formData.name,
+          name: resolvedName,
           firstName: formData.firstName,
           createdAt: new Date()
+        });
+      } else {
+        await updateClientInfo(clientUniqueId, sellerId!, {
+          name: resolvedName,
+          firstName: formData.firstName,
         });
       }
 
@@ -116,11 +166,12 @@ export default function ClientCart() {
         })),
         total,
         status: 'processing',
-        deliveryDetails: formData
+        deliveryDetails
       });
 
       setOrderSuccess(reference);
       clearCart();
+      if (seller) notifyNewOrder(seller.id, seller.phone, clientId!, reference);
     } catch (error) {
       console.error("Error placing order:", error);
       setError("Une erreur est survenue lors de la commande.");
@@ -279,3 +330,4 @@ export default function ClientCart() {
     </div>
   );
 }
+

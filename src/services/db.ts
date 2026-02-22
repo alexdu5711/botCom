@@ -224,6 +224,12 @@ export const saveClient = async (client: Client) => {
   }, { merge: true });
 };
 
+export const updateClientInfo = async (clientId: string, sellerId: string, data: { name?: string; firstName?: string; deliveryPlace?: string }) => {
+  const database = ensureDb();
+  const clientDocId = `${sellerId}_${clientId}`;
+  return await updateDoc(doc(database, "clients", clientDocId), data);
+};
+
 export const getAllClients = async (sellerId: string): Promise<Client[]> => {
   const database = ensureDb();
   const q = query(collection(database, "clients"), where("sellerId", "==", sellerId));

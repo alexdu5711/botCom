@@ -123,6 +123,7 @@ const ClientLayout = ({ children }: { children: React.ReactNode }) => {
   const { sellerId, clientId } = useParams();
   const location = useLocation();
   const [sellerName, setSellerName] = useState('Eco-Shop');
+  const setClientName = useCart(state => state.setClientName);
   const cartCount = useCart(state => state.items.reduce((acc, i) => acc + i.quantity, 0));
 
   useEffect(() => {
@@ -135,6 +136,13 @@ const ClientLayout = ({ children }: { children: React.ReactNode }) => {
     };
     fetchSeller();
   }, [sellerId]);
+
+  useEffect(() => {
+    const queryName = new URLSearchParams(location.search).get('name');
+    if (queryName?.trim()) {
+      setClientName(queryName);
+    }
+  }, [location.search, setClientName]);
 
   const base = `/client/${sellerId}/${clientId}`;
 
