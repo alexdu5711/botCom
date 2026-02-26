@@ -31,6 +31,7 @@ import { useCart } from './store/useCart';
 import ClientHome from './pages/client/ClientHome';
 import ClientCart from './pages/client/ClientCart';
 import ClientOrders from './pages/client/ClientOrders';
+import ClientLanding from './pages/client/ClientLanding';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminProducts from './pages/admin/AdminProducts';
 import AdminCategories from './pages/admin/AdminCategories';
@@ -339,6 +340,17 @@ import { isConfigured } from './lib/firebase';
 import { AlertTriangle, LogOut as LogOutIcon } from 'lucide-react';
 import { useSearchParams, Navigate } from 'react-router-dom';
 
+// Detects doubled URLs like /client/ABC/client/ABC/phone and redirects to /client/ABC/phone
+const ClientPathFixer = () => {
+  const location = useLocation();
+  const path = location.pathname;
+  const match = path.match(/^\/client\/([^/]+)\/client\/[^/]+\/(.+)$/);
+  if (match) {
+    return <Navigate to={`/client/${match[1]}/${match[2]}${location.search}`} replace />;
+  }
+  return <Navigate to="/" replace />;
+};
+
 const SetupWarning = () => (
   <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-6">
     <div className="max-w-md w-full bg-white rounded-3xl border border-zinc-100 p-8 shadow-xl shadow-black/5 text-center space-y-6">
@@ -376,6 +388,7 @@ export default function App() {
       <Router>
         <Routes>
           {/* Client Routes */}
+          <Route path="/client/:sellerId" element={<ClientLanding />} />
           <Route path="/client/:sellerId/:clientId" element={<ClientLayout><ClientHome /></ClientLayout>} />
           <Route path="/client/:sellerId/:clientId/cart" element={<ClientLayout><ClientCart /></ClientLayout>} />
           <Route path="/client/:sellerId/:clientId/orders" element={<ClientLayout><ClientOrders /></ClientLayout>} />
@@ -390,6 +403,9 @@ export default function App() {
           <Route path="/admin/clients" element={<ProtectedRoute><AdminLayout><AdminClients /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/sellers" element={<ProtectedRoute requireSuperAdmin><AdminLayout><SuperAdminSellers /></AdminLayout></ProtectedRoute>} />
           
+          {/* Catch doubled client paths like /client/ABC/client/ABC/phone */}
+          <Route path="/client/*" element={<ClientPathFixer />} />
+
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/admin" replace />} />
         </Routes>

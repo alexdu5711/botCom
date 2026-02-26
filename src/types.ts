@@ -31,6 +31,9 @@ export interface Product {
   categoryId: string;
   imageUrl: string;
   sellerId: string;
+  promotionPrice?: number;
+  stock?: number;
+  isOutOfStock?: boolean;
 }
 
 export type OrderStatus = 'processing' | 'processed' | 'cancelled' | 'refused';

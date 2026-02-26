@@ -3,13 +3,15 @@ import { Client } from '../../types';
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Search, Plus, ShoppingBag, Package, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, ShoppingBag, Package, MapPin, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
 import { getCategories, getProducts, getSeller } from '../../services/db';
 import { Category, Product } from '../../types';
 import { useCart } from '../../store/useCart';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { formatPrice } from '../../lib/utils';
+import { formatPrice, cn } from '../../lib/utils';
+
+const PROMO_TAB = '__PROMO__';
 
 export default function ClientHome() {
   const { clientId: paramClientId, sellerId } = useParams();
@@ -36,6 +38,8 @@ export default function ClientHome() {
     return acc;
   }, {});
   const base = `/client/${sellerId}/${clientId}`;
+
+  const hasPromos = products.some(p => p.promotionPrice !== undefined && p.promotionPrice < p.price);
 
   useEffect(() => {
     const checkClient = async () => {
@@ -64,8 +68,6 @@ export default function ClientHome() {
               { headers: { 'Accept-Language': 'fr' } }
             );
             const data = await res.json();
-            console.log('Nominatim full response:', data);
-            console.log('Address fields:', data.address);
             const addr = data.address;
             const parts = [
               addr.road,
@@ -126,11 +128,22 @@ export default function ClientHome() {
     setClient(clientData);
   };
 
-  const filteredProducts = products.filter(p => {
-    const matchCategory = !selectedCategory || p.categoryId === selectedCategory;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return matchCategory && matchSearch;
-  });
+  const filteredProducts = products
+    .filter(p => {
+      let matchCategory: boolean;
+      if (selectedCategory === PROMO_TAB) {
+        matchCategory = p.promotionPrice !== undefined && p.promotionPrice < p.price;
+      } else {
+        matchCategory = !selectedCategory || p.categoryId === selectedCategory;
+      }
+      const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+      return matchCategory && matchSearch;
+    })
+    .sort((a, b) => {
+      const aRupture = a.isOutOfStock || a.stock === 0 ? 1 : 0;
+      const bRupture = b.isOutOfStock || b.stock === 0 ? 1 : 0;
+      return aRupture - bRupture;
+    });
 
   const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
   const pagedProducts = filteredProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -184,7 +197,7 @@ export default function ClientHome() {
         />
       </div>
 
-      {/* Categories — sticky sliding */}
+      {/* Categories + Promos tab — sticky sliding */}
       <div className="sticky top-[61px] z-30 bg-zinc-50 -mx-4 px-4 py-2">
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
           <button
@@ -197,6 +210,21 @@ export default function ClientHome() {
           >
             Tout
           </button>
+
+          {hasPromos && (
+            <button
+              onClick={() => handleFilter(() => setSelectedCategory(PROMO_TAB))}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                selectedCategory === PROMO_TAB
+                  ? "bg-orange-500 text-white"
+                  : "bg-orange-50 text-orange-600 border border-orange-200"
+              }`}
+            >
+              <Tag size={13} />
+              Promotions
+            </button>
+          )}
+
           {categories.map(category => (
             <button
               key={category.id}
@@ -216,46 +244,93 @@ export default function ClientHome() {
       {/* Products Grid */}
       <div className="grid grid-cols-2 gap-4">
         {pagedProducts.length > 0 ? (
-          pagedProducts.map((product, index) => (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-            >
-              <Card className="h-full flex flex-col group">
-                <div className="aspect-square relative overflow-hidden bg-zinc-100">
-                  <img 
-                    src={product.imageUrl || sellerLogo || `https://picsum.photos/400/400?random=${product.id}`}
-                    alt={product.name}
-                    className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500"
-                    referrerPolicy="no-referrer"
-                  />
-                  {productQuantities[product.id] > 0 && (
-                    <div className="absolute top-2 right-2 min-w-6 h-6 px-1.5 rounded-full bg-black text-white text-xs font-bold flex items-center justify-center shadow-lg shadow-black/20">
-                      {productQuantities[product.id]}
+          pagedProducts.map((product, index) => {
+            const isRupture = product.isOutOfStock || product.stock === 0;
+            const hasPromo = product.promotionPrice !== undefined && product.promotionPrice < product.price;
+            const effectivePrice = hasPromo ? product.promotionPrice! : product.price;
+            const showStock = product.stock !== undefined && product.stock > 0 && product.stock <= 10;
+
+            return (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Card className="h-full flex flex-col group">
+                  <div className="aspect-square relative overflow-hidden bg-zinc-100">
+                    <img
+                      src={product.imageUrl || sellerLogo || `https://picsum.photos/400/400?random=${product.id}`}
+                      alt={product.name}
+                      className={cn(
+                        "object-cover w-full h-full group-hover:scale-110 transition-transform duration-500",
+                        isRupture && "opacity-40 grayscale"
+                      )}
+                      referrerPolicy="no-referrer"
+                    />
+
+                    {/* Promo badge */}
+                    {hasPromo && !isRupture && (
+                      <div className="absolute top-2 left-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        Promo
+                      </div>
+                    )}
+
+                    {/* Rupture overlay */}
+                    {isRupture && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow">
+                          Rupture
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Cart quantity badge */}
+                    {productQuantities[product.id] > 0 && !isRupture && (
+                      <div className="absolute top-2 right-2 min-w-6 h-6 px-1.5 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center shadow-lg shadow-black/20">
+                        {productQuantities[product.id]}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 flex-1 flex flex-col justify-between gap-2">
+                    <div>
+                      <h3 className="font-semibold text-sm line-clamp-1">{product.name}</h3>
+                      <p className="text-zinc-500 text-xs line-clamp-2 mt-1">{product.description}</p>
                     </div>
-                  )}
-                </div>
-                <div className="p-3 flex-1 flex flex-col justify-between gap-2">
-                  <div>
-                    <h3 className="font-semibold text-sm line-clamp-1">{product.name}</h3>
-                    <p className="text-zinc-500 text-xs line-clamp-2 mt-1">{product.description}</p>
+                    <div className="flex items-end justify-between mt-2">
+                      <div className="flex flex-col">
+                        {hasPromo ? (
+                          <>
+                            <span className="font-bold text-sm text-orange-600">{formatPrice(effectivePrice)}</span>
+                            <span className="text-[11px] line-through text-zinc-400">{formatPrice(product.price)}</span>
+                          </>
+                        ) : (
+                          <span className="font-bold text-sm">{formatPrice(product.price)}</span>
+                        )}
+                        {showStock && (
+                          <span className={cn(
+                            "text-[10px] font-semibold mt-0.5",
+                            product.stock! <= 3 ? "text-red-500" : "text-orange-500"
+                          )}>
+                            {product.stock} restant{product.stock !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        size="icon"
+                        className={cn("rounded-full w-8 h-8", isRupture && "opacity-40 cursor-not-allowed")}
+                        onClick={() => !isRupture && addItem({ ...product, price: effectivePrice })}
+                        disabled={isRupture}
+                      >
+                        <Plus size={16} />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="font-bold text-sm">{formatPrice(product.price)}</span>
-                    <Button 
-                      size="icon" 
-                      className="rounded-full w-8 h-8"
-                      onClick={() => addItem(product)}
-                    >
-                      <Plus size={16} />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-          ))
+                </Card>
+              </motion.div>
+            );
+          })
         ) : (
           <div className="col-span-2 py-20 text-center space-y-2">
             <Package className="mx-auto text-zinc-300" size={48} />

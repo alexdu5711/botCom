@@ -219,6 +219,19 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus) =>
   return await updateDoc(docRef, { status });
 };
 
+export const deductStockForOrder = async (order: Order): Promise<void> => {
+  const database = ensureDb();
+  for (const item of order.items) {
+    if (!item.productId) continue;
+    const productRef = doc(database, "products", item.productId);
+    const snap = await getDoc(productRef);
+    if (!snap.exists()) continue;
+    const product = snap.data() as Product;
+    if (product.stock === undefined || product.stock === null) continue;
+    await updateDoc(productRef, { stock: Math.max(0, product.stock - item.quantity) });
+  }
+};
+
 // Clients
 export const getClient = async (id: string, sellerId: string): Promise<Client | null> => {
   const database = ensureDb();
