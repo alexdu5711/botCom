@@ -38,6 +38,7 @@ import AdminCategories from './pages/admin/AdminCategories';
 import AdminClients from './pages/admin/AdminClients';
 import SuperAdminSellers from './pages/admin/SuperAdminSellers';
 import Login from './pages/admin/Login';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { getAppUser, getSeller } from './services/db';
@@ -405,6 +406,9 @@ export default function App() {
           
           {/* Catch doubled client paths like /client/ABC/client/ABC/phone */}
           <Route path="/client/*" element={<ClientPathFixer />} />
+
+          {/* Privacy Policy */}
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/admin" replace />} />
